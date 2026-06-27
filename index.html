@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7efe3" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>피하당!</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #f7efe3;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif;
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+
+    #gameWrap {
+      position: fixed; inset: 0;
+      height: calc(var(--vh, 1vh) * 100);
+      background: linear-gradient(#f9f1e7, #ead8c4);
+      overflow: hidden;
+    }
+
+    canvas { display: block; width: 100%; height: 100%; }
+
+    /* ===== 상단 HUD ===== */
+    .top-ui {
+      position: absolute;
+      top: env(safe-area-inset-top); left: 0;
+      width: 100%; padding: 16px 18px 8px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      color: #3d3027; pointer-events: none; z-index: 10;
+    }
+    .score-box { font-size: 15px; line-height: 1.5; font-weight: 800; letter-spacing: -0.02em; }
+    .title-box { text-align: right; }
+    .game-title { font-size: 24px; font-weight: 900; letter-spacing: -0.05em; }
+    .game-sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
+
+    /* ===== 효과음 토글 버튼 ===== */
+    #soundBtn {
+      position: absolute;
+      top: calc(env(safe-area-inset-top) + 70px); right: 16px;
+      width: 38px; height: 38px; border-radius: 12px;
+      border: none; background: rgba(61,48,39,0.12); color: #3d3027;
+      font-size: 18px; z-index: 15; cursor: pointer;
+    }
+
+    /* ===== 효과 배지 (방패/시계 남은시간) ===== */
+    #buffBar {
+      position: absolute;
+      top: calc(env(safe-area-inset-top) + 116px); right: 16px;
+      display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+      z-index: 12; pointer-events: none;
+    }
+    .buff {
+      font-size: 13px; font-weight: 800; color: #3d3027;
+      background: rgba(255,252,246,0.85); border-radius: 999px;
+      padding: 4px 10px; box-shadow: 0 4px 10px rgba(86,62,40,.15);
+    }
+
+    /* ===== 중앙 패널 ===== */
+    .center-panel {
+      position: absolute; left: 50%; top: 50%;
+      width: min(86vw, 360px); transform: translate(-50%, -50%);
+      background: rgba(255, 252, 246, 0.94);
+      border: 2px solid rgba(73, 52, 37, 0.12);
+      border-radius: 28px; padding: 26px 22px; text-align: center;
+      box-shadow: 0 18px 45px rgba(86, 62, 40, 0.18);
+      z-index: 20; max-height: 88vh; overflow-y: auto;
+    }
+    .center-panel h1 { margin: 0 0 8px; font-size: 32px; letter-spacing: -0.08em; color: #3d3027; }
+    .center-panel p { margin: 0 0 16px; font-size: 15px; line-height: 1.55; color: #6c5a4b; word-break: keep-all; }
+
+    .btn {
+      width: 100%; border: none; border-radius: 18px; padding: 15px 18px;
+      background: #3d3027; color: #fffaf2; font-size: 17px; font-weight: 900;
+      cursor: pointer; transition: transform .06s ease;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn.ghost { background: rgba(61,48,39,0.1); color: #3d3027; margin-top: 10px; }
+
+    .small-text { margin-top: 14px; font-size: 12px; color: #8b7868; }
+    .hidden { display: none; }
+
+    /* ===== 스킨 선택 ===== */
+    .skin-label { font-size: 13px; font-weight: 800; color: #6c5a4b; margin: 4px 0 10px; }
+    .skin-row { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+    .skin-swatch {
+      width: 52px; height: 52px; border-radius: 16px; cursor: pointer;
+      border: 3px solid transparent; background: #fff; position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .skin-swatch.active { border-color: #3d3027; }
+    .skin-swatch canvas { width: 40px; height: 40px; }
+
+    /* ===== 공유 문구 박스 ===== */
+    #shareText {
+      font-size: 13px; color: #6c5a4b; background: rgba(61,48,39,0.06);
+      border-radius: 14px; padding: 12px; margin: 4px 0 16px; line-height: 1.5;
+      word-break: keep-all;
+    }
+
+    .bottom-hint {
+      position: absolute; left: 50%;
+      bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+      color: rgba(61, 48, 39, 0.55); font-size: 13px; font-weight: 700;
+      z-index: 10; pointer-events: none; white-space: nowrap;
+    }
+
+    /* ===== 난이도 상승 토스트 ===== */
+    #toast {
+      position: absolute; left: 50%; top: 28%;
+      transform: translate(-50%, -50%) scale(0.8);
+      background: rgba(61,48,39,0.92); color: #fff7ea;
+      font-size: 20px; font-weight: 900; letter-spacing: -0.03em;
+      padding: 14px 26px; border-radius: 999px;
+      z-index: 30; pointer-events: none; opacity: 0;
+      white-space: nowrap;
+    }
+    #toast.show { animation: pop 1.6s ease forwards; }
+    @keyframes pop {
+      0%   { opacity: 0; transform: translate(-50%,-50%) scale(0.6); }
+      15%  { opacity: 1; transform: translate(-50%,-50%) scale(1.08); }
+      30%  { transform: translate(-50%,-50%) scale(1.0); }
+      80%  { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%,-60%) scale(1.0); }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="gameWrap">
+    <canvas id="game"></canvas>
+
+    <div class="top-ui">
+      <div class="score-box">
+        점수 <span id="score">0</span><br />
+        최고 <span id="bestScore">0</span><br />
+        생명 <span id="life">3</span>
+      </div>
+      <div class="title-box">
+        <div class="game-title">피하당!</div>
+        <div class="game-sub">Lv.<span id="level">1</span></div>
+      </div>
+    </div>
+
+    <button id="soundBtn">🔊</button>
+    <div id="buffBar"></div>
+
+    <!-- 시작 패널 -->
+    <div id="startPanel" class="center-panel">
+      <h1>피하당!</h1>
+      <p>떨어지는 것들을 피하고<br />아이템을 먹으며 살아남으세요!</p>
+      <div class="skin-label">캐릭터 선택</div>
+      <div class="skin-row" id="skinRow"></div>
+      <button id="startBtn" class="btn">시작하기</button>
+      <div class="small-text">🛡️ 방패 · ⭐ 별 · ⏰ 시계를 노려보세요</div>
+    </div>
+
+    <!-- 게임오버 패널 -->
+    <div id="gameOverPanel" class="center-panel hidden">
+      <h1>게임오버</h1>
+      <p>최종 점수 <b id="finalScore">0</b>점 · Lv.<span id="finalLevel">1</span></p>
+      <div id="shareText"></div>
+      <button id="restartBtn" class="btn">다시하기</button>
+      <button id="shareBtn" class="btn ghost">결과 공유하기</button>
+    </div>
+
+    <div class="bottom-hint">← 손가락으로 좌우 이동 →</div>
+    <div id="toast"></div>
+  </div>
+
+  <script>
+  "use strict";
+  /* =====================================================================
+     피하당! — 모바일 세로형 캐주얼 회피 게임 (중독성 강화판)
+     ---------------------------------------------------------------------
+     수정 가이드
+       · 밸런스 → CONFIG
+       · 장애물 외형(브랜드 세계관 교체) → OBSTACLE_THEMES + CONFIG.obstacleTheme
+       · 아이템 효과 → ITEMS
+       · 캐릭터 스킨 → SKINS
+       · 효과음(실제 음원 교체) → Sound 모듈 / SOUND_DEFS
+     ===================================================================== */
+
+  /* ------------------- ① CONFIG ------------------- */
+  const CONFIG = {
+    startLife: 3,
+    scorePerSec: 8,
+    dodgeBonus: 1,
+    invincibleTime: 1.2,          // 피격 후 깜빡이는 무적
+
+    obstacleTheme: "poop",        // ← OBSTACLE_THEMES 키로 교체 (brand 등)
+
+    player: {
+      followEase: 7,
+      margin: 28,
+      bottomGap: 120,
+      hitRadius: 22,
+      hitOffsetY: -28,
+    },
+
+    obstacle: {
+      minSize: 24, maxSize: 46,
+      baseSpeed: 200,
+      baseSpawn: 0.8,
+      wobbleAmp: 28,
+    },
+
+    // 10초마다 레벨 +1 → 알림 + 난이도 상승
+    difficulty: {
+      levelInterval: 10,          // 초
+      speedStep: 0.16,            // 레벨당 낙하속도 배율 증가
+      maxSpeedMul: 2.6,
+      spawnStep: 0.055,           // 레벨당 스폰 간격 감소(초)
+      minSpawn: 0.3,
+    },
+
+    item: {
+      spawnMin: 4.5, spawnMax: 8,  // 아이템 스폰 간격(초)
+      size: 30,
+      fallSpeed: 150,
+    },
+  };
+
+  /* ------------------- ② 아이템 정의 ------------------- */
+  const ITEMS = {
+    shield: { emoji: "🛡️", color: "#5aa9e6", duration: 5,   label: "방패" },
+    star:   { emoji: "⭐", color: "#f6c945", bonus: 120,     label: "별" },
+    clock:  { emoji: "⏰", color: "#7ed6a5", duration: 4, slow: 0.45, label: "시계" },
+  };
+  const ITEM_KEYS = Object.keys(ITEMS);
+
+  /* ------------------- ③ 캐릭터 스킨 ------------------- */
+  // head: 머리 채움색, stroke: 외곽선/팔다리색, accessory: (ctx)=>{} 선택
+  const SKINS = [
+    { id: "basic", name: "기본",   head: "#fffaf2", stroke: "#2f2925" },
+    { id: "berry", name: "딸기",   head: "#ffd9e3", stroke: "#d24a72",
+      accessory: (c) => { c.fillStyle = "#7ec46b"; c.beginPath(); c.moveTo(0,-72); c.lineTo(-5,-66); c.lineTo(5,-66); c.closePath(); c.fill(); } },
+    { id: "mint",  name: "민트",   head: "#d6f5ec", stroke: "#2f8f7a" },
+    { id: "robot", name: "로봇",   head: "#dfe6ee", stroke: "#50606f",
+      accessory: (c) => { c.strokeStyle = "#50606f"; c.lineWidth = 3; c.beginPath(); c.moveTo(0,-70); c.lineTo(0,-80); c.stroke(); c.fillStyle="#ff6f6f"; c.beginPath(); c.arc(0,-82,3,0,Math.PI*2); c.fill(); } },
+  ];
+  let currentSkin = SKINS[Number(localStorage.getItem("avoidGameSkin") || 0)] || SKINS[0];
+
+  /* ------------------- ④ 장애물 테마 (세계관 교체 지점) -------------------
+     각 테마는 draw(ctx, o) 하나만 구현하면 됩니다.
+     o.size, o.type("normal"|"fast"|"big") 활용. 좌표는 (0,0) 중심.
+     브랜드 캐릭터로 바꾸려면 새 테마를 추가하고 CONFIG.obstacleTheme 만 변경. */
+  const OBSTACLE_THEMES = {
+    // 기본: 귀여운 똥
+    poop: {
+      colors: { normal: "#6b4a34", fast: "#86593c", big: "#523928" },
+      draw(ctx, o) {
+        const s = o.size;
+        ctx.fillStyle = this.colors[o.type] || this.colors.normal;
+        ctx.strokeStyle = "#3a2a22"; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-s*0.45, s*0.25);
+        ctx.bezierCurveTo(-s*0.58,-s*0.05, -s*0.22,-s*0.16, -s*0.06,-s*0.25);
+        ctx.bezierCurveTo(-s*0.18,-s*0.42, s*0.08,-s*0.55, s*0.18,-s*0.33);
+        ctx.bezierCurveTo(s*0.48,-s*0.25, s*0.58,s*0.05, s*0.38,s*0.24);
+        ctx.bezierCurveTo(s*0.18,s*0.42, -s*0.22,s*0.42, -s*0.45,s*0.25);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(-s*0.12,-s*0.05, s*0.17, Math.PI*0.9, Math.PI*1.55); ctx.stroke();
+      }
+    },
+
+    // 예시 테마: 슬라임 몬스터 (브랜드 캐릭터 교체용 샘플)
+    slime: {
+      colors: { normal: "#8e7bd6", fast: "#e6748f", big: "#5fb0b0" },
+      draw(ctx, o) {
+        const s = o.size, col = this.colors[o.type] || this.colors.normal;
+        ctx.fillStyle = col; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-s*0.5, s*0.35);
+        ctx.quadraticCurveTo(-s*0.55,-s*0.5, 0,-s*0.5);
+        ctx.quadraticCurveTo(s*0.55,-s*0.5, s*0.5,s*0.35);
+        ctx.quadraticCurveTo(0,s*0.2, -s*0.5,s*0.35);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.beginPath(); ctx.arc(-s*0.16,-s*0.1, s*0.1,0,Math.PI*2); ctx.arc(s*0.16,-s*0.1, s*0.1,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#222";
+        ctx.beginPath(); ctx.arc(-s*0.16,-s*0.08, s*0.05,0,Math.PI*2); ctx.arc(s*0.16,-s*0.08, s*0.05,0,Math.PI*2); ctx.fill();
+      }
+    },
+  };
+  let activeTheme = OBSTACLE_THEMES[CONFIG.obstacleTheme] || OBSTACLE_THEMES.poop;
+
+  /* ------------------- ⑤ 효과음 모듈 -------------------
+     WebAudio로 간단한 합성음을 냅니다. 실제 음원 파일로 바꾸려면
+     Sound.play() 내부만 교체(예: new Audio(SOUND_DEFS[name].src).play()). */
+  const SOUND_DEFS = {
+    item:   { freq: 880, type: "sine",     dur: 0.14, gain: 0.18 },
+    shield: { freq: 520, type: "triangle", dur: 0.22, gain: 0.2  },
+    star:   { freq: 1040,type: "square",   dur: 0.16, gain: 0.14 },
+    clock:  { freq: 360, type: "sine",     dur: 0.25, gain: 0.18 },
+    hit:    { freq: 150, type: "sawtooth", dur: 0.25, gain: 0.25 },
+    levelup:{ freq: 660, type: "triangle", dur: 0.3,  gain: 0.2  },
+    over:   { freq: 110, type: "sawtooth", dur: 0.5,  gain: 0.25 },
+  };
+  const Sound = {
+    enabled: true,
+    ctx: null,
+    init() {
+      if (this.ctx) return;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) this.ctx = new AC();
+    },
+    play(name) {
+      if (!this.enabled || !this.ctx) return;
+      const def = SOUND_DEFS[name]; if (!def) return;
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = def.type; osc.frequency.setValueAtTime(def.freq, t);
+      // 살짝 음정 떨어뜨려 부드럽게
+      osc.frequency.exponentialRampToValueAtTime(def.freq * 0.7, t + def.dur);
+      g.gain.setValueAtTime(def.gain, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + def.dur);
+      osc.connect(g).connect(this.ctx.destination);
+      osc.start(t); osc.stop(t + def.dur);
+    },
+    toggle() { this.enabled = !this.enabled; return this.enabled; },
+  };
+
+  /* ------------------- ⑤-2 배경음악(BGM) 모듈 -------------------
+     절차적 스텝 시퀀서. state.level 이 오를수록
+       · BPM(템포)이 빨라지고
+       · 킥/하이햇/아르페지오 레이어가 추가되며
+       · 필터가 밝아져 점점 급박해집니다.
+     템포/강도 곡선은 Music.cfg / scheduleStep 에서 조정. */
+  const Music = {
+    enabled: true,
+    playing: false,
+    ctxRef: null,
+    master: null,
+    step: 0,
+    nextTime: 0,
+    timer: null,
+    cfg: {
+      baseBpm: 86,        // Lv.1 템포
+      bpmPerLevel: 13,    // 레벨당 +BPM (심장 쫄리게)
+      maxBpm: 212,        // 최고 템포 상한
+      lookahead: 0.12,    // 미리 예약할 시간(초)
+      tickMs: 25,         // 스케줄러 주기
+      volume: 0.26,
+    },
+    scale: [0, 2, 3, 5, 7, 8, 10],  // 자연 단음계 → 긴장감
+    root: 110,                       // A2
+
+    ensure() {
+      Sound.init();
+      this.ctxRef = Sound.ctx;
+      if (this.ctxRef && !this.master) {
+        this.master = this.ctxRef.createGain();
+        this.master.gain.value = 0.0001;
+        this.master.connect(this.ctxRef.destination);
+      }
+    },
+    start() {
+      this.ensure();
+      if (!this.ctxRef || this.playing) return;
+      if (this.ctxRef.state === "suspended") this.ctxRef.resume();
+      this.playing = true;
+      this.step = 0;
+      this.nextTime = this.ctxRef.currentTime + 0.06;
+      const t = this.ctxRef.currentTime;
+      this.master.gain.cancelScheduledValues(t);
+      this.master.gain.setValueAtTime(0.0001, t);
+      this.master.gain.linearRampToValueAtTime(this.enabled ? this.cfg.volume : 0.0001, t + 0.8);
+      this.loop();
+    },
+    stop() {
+      this.playing = false;
+      if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+      if (this.ctxRef && this.master) {
+        const t = this.ctxRef.currentTime;
+        this.master.gain.cancelScheduledValues(t);
+        this.master.gain.setValueAtTime(this.master.gain.value, t);
+        this.master.gain.linearRampToValueAtTime(0.0001, t + 0.4);
+      }
+    },
+    setEnabled(on) {
+      this.enabled = on;
+      if (!this.ctxRef || !this.master) return;
+      const t = this.ctxRef.currentTime;
+      this.master.gain.cancelScheduledValues(t);
+      this.master.gain.linearRampToValueAtTime(on && this.playing ? this.cfg.volume : 0.0001, t + 0.2);
+    },
+    bpm() {
+      const c = this.cfg;
+      return Math.min(c.maxBpm, c.baseBpm + (state.level - 1) * c.bpmPerLevel);
+    },
+    loop() {
+      if (!this.playing) return;
+      const a = this.ctxRef;
+      try {
+        const sixteenth = (60 / this.bpm()) / 4;
+        while (this.nextTime < a.currentTime + this.cfg.lookahead) {
+          this.scheduleStep(this.step, this.nextTime);
+          this.nextTime += sixteenth;
+          this.step = (this.step + 1) % 16;
+        }
+      } catch (err) {
+        console.error("[Music] scheduler error:", err);
+      }
+      this.timer = setTimeout(() => this.loop(), this.cfg.tickMs);
+    },
+    freq(semi, octave) { return this.root * Math.pow(2, octave + semi / 12); },
+    voice(freq, time, dur, type, gain, cutoff) {
+      const a = this.ctxRef;
+      const osc = a.createOscillator(), g = a.createGain(), f = a.createBiquadFilter();
+      f.type = "lowpass"; f.frequency.value = cutoff;
+      osc.type = type; osc.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, time);
+      g.gain.exponentialRampToValueAtTime(gain, time + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+      osc.connect(f).connect(g).connect(this.master);
+      osc.start(time); osc.stop(time + dur + 0.03);
+    },
+    kick(time) {
+      const a = this.ctxRef;
+      const osc = a.createOscillator(), g = a.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(155, time);
+      osc.frequency.exponentialRampToValueAtTime(45, time + 0.12);
+      g.gain.setValueAtTime(0.9, time);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + 0.18);
+      osc.connect(g).connect(this.master);
+      osc.start(time); osc.stop(time + 0.2);
+    },
+    hat(time, intensity) {
+      const a = this.ctxRef;
+      const osc = a.createOscillator(), g = a.createGain();
+      osc.type = "square"; osc.frequency.value = 8200;
+      g.gain.setValueAtTime(Math.min(0.12, 0.05 * intensity), time);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
+      osc.connect(g).connect(this.master);
+      osc.start(time); osc.stop(time + 0.04);
+    },
+    scheduleStep(step, time) {
+      const lvl = state.level;
+      const tension = Math.min(1, (lvl - 1) / 8);     // 0~1 긴장도
+      const cutoff = 700 + tension * 4500;            // 밝아질수록 급박
+
+      // 베이스 라인 (4분음표 위치)
+      const BASS = [0, null, null, null, 5, null, null, null, 3, null, null, null, 7, null, null, null];
+      if (BASS[step] !== null) this.voice(this.freq(BASS[step], -1), time, 0.22, "sawtooth", 0.24, cutoff);
+
+      // 킥: 기본 4비트 + 고레벨에서 8비트
+      if (step % 4 === 0) this.kick(time);
+      if (lvl >= 5 && step % 4 === 2) this.kick(time);
+
+      // 하이햇: 레벨 오를수록 촘촘하게
+      if (lvl >= 2 && step % 2 === 0) this.hat(time, 0.7 + tension);
+      if (lvl >= 4 && step % 2 === 1) this.hat(time, 0.5 + tension);
+
+      // 긴장 아르페지오: 레벨 3+, 밀도/음역 상승
+      if (lvl >= 3) {
+        const every = lvl >= 7 ? 1 : 2;
+        if (step % every === 0) {
+          const idx = (step + lvl) % this.scale.length;
+          this.voice(this.freq(this.scale[idx], 1), time, 0.12, "square", 0.05 + tension * 0.05, cutoff);
+        }
+      }
+    },
+  };
+
+  /* ------------------- 오디오 unlock (자동재생 정책 대응) -------------------
+     모바일/데스크톱 브라우저는 사용자 제스처 없이는 소리를 막습니다.
+     첫 터치/클릭에서 AudioContext 를 깨워 둡니다. */
+  function unlockAudio() {
+    Sound.init();
+    if (Sound.ctx && Sound.ctx.state === "suspended") {
+      Sound.ctx.resume().catch(() => {});
+    }
+  }
+  ["pointerdown", "touchstart", "keydown"].forEach((ev) =>
+    window.addEventListener(ev, unlockAudio, { once: false, passive: true })
+  );
+
+  /* ------------------- DOM ------------------- */
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const ui = {
+    score: document.getElementById("score"),
+    best:  document.getElementById("bestScore"),
+    life:  document.getElementById("life"),
+    level: document.getElementById("level"),
+    final: document.getElementById("finalScore"),
+    finalLevel: document.getElementById("finalLevel"),
+    shareText: document.getElementById("shareText"),
+    startPanel: document.getElementById("startPanel"),
+    overPanel:  document.getElementById("gameOverPanel"),
+    buffBar: document.getElementById("buffBar"),
+    toast: document.getElementById("toast"),
+  };
+
+  /* ------------------- ⑥ 상태 ------------------- */
+  let W = 0, H = 0, dpr = 1;
+  let gameState = "ready";
+  let lastTime = 0;
+
+  const state = {
+    elapsed: 0, score: 0, life: CONFIG.startLife, level: 1,
+    best: Number(localStorage.getItem("avoidGameBestScore") || 0),
+    spawnTimer: 0, itemTimer: 0,
+    shieldTime: 0, slowTime: 0,
+  };
+
+  const player = { x: 0, y: 0, targetX: 0, invincible: 0 };
+  const obstacles = [];
+  const items = [];
+  const particles = [];
+
+  ui.best.textContent = state.best;
+
+  /* ------------------- 캔버스 / 뷰포트 ------------------- */
+  function setVh() {
+    document.documentElement.style.setProperty("--vh", window.innerHeight / 100 + "px");
+  }
+  function resize() {
+    setVh();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr);
+    canvas.style.width = W + "px"; canvas.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    player.y = H - CONFIG.player.bottomGap;
+    player.x = clamp(player.x || W / 2, CONFIG.player.margin, W - CONFIG.player.margin);
+    player.targetX = player.x;
+    if (gameState !== "playing") draw();
+  }
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", () => setTimeout(resize, 200));
+
+  /* ------------------- 입력 ------------------- */
+  function pointerMove(clientX) {
+    if (gameState !== "playing") return;
+    player.targetX = clamp(clientX, CONFIG.player.margin, W - CONFIG.player.margin);
+  }
+  canvas.addEventListener("touchstart", (e) => { e.preventDefault(); pointerMove(e.touches[0].clientX); }, { passive: false });
+  canvas.addEventListener("touchmove",  (e) => { e.preventDefault(); pointerMove(e.touches[0].clientX); }, { passive: false });
+  canvas.addEventListener("mousemove",  (e) => pointerMove(e.clientX));
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) lastTime = performance.now(); });
+
+  /* ------------------- 게임 흐름 ------------------- */
+  function resetGame() {
+    state.elapsed = 0; state.score = 0; state.life = CONFIG.startLife; state.level = 1;
+    state.spawnTimer = 0; state.shieldTime = 0; state.slowTime = 0;
+    state.itemTimer = random(CONFIG.item.spawnMin, CONFIG.item.spawnMax);
+    player.x = W / 2; player.targetX = W / 2; player.y = H - CONFIG.player.bottomGap; player.invincible = 0;
+    obstacles.length = 0; items.length = 0; particles.length = 0;
+    updateUI(); renderBuffs();
+  }
+  function startGame() {
+    Sound.init();
+    unlockAudio();
+    Music.start();
+    resetGame();
+    gameState = "playing";
+    ui.startPanel.classList.add("hidden");
+    ui.overPanel.classList.add("hidden");
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+  function gameOver() {
+    gameState = "over";
+    Music.stop();
+    Sound.play("over");
+    const finalScore = Math.floor(state.score);
+    if (finalScore > state.best) {
+      state.best = finalScore;
+      localStorage.setItem("avoidGameBestScore", state.best);
+    }
+    updateUI();
+    ui.final.textContent = finalScore;
+    ui.finalLevel.textContent = state.level;
+    ui.shareText.textContent = buildShareText(finalScore, state.level);
+    ui.overPanel.classList.remove("hidden");
+  }
+
+  document.getElementById("startBtn").addEventListener("click", startGame);
+  document.getElementById("restartBtn").addEventListener("click", startGame);
+
+  /* ------------------- ⑦ 공유 ------------------- */
+  function buildShareText(score, level) {
+    const lines = [
+      `피하당!에서 ${score}점(Lv.${level}) 달성! 🏃💨`,
+      `이걸 피한다고? 너도 도전해봐 😎`,
+    ];
+    return lines.join("\n");
+  }
+  document.getElementById("shareBtn").addEventListener("click", async () => {
+    const text = ui.shareText.textContent;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "피하당!", text, url: location.href });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text + "\n" + location.href);
+        showToast("📋 공유 문구 복사 완료!");
+      }
+    } catch (_) { /* 사용자가 취소 */ }
+  });
+
+  /* ------------------- 효과음 토글 ------------------- */
+  const soundBtn = document.getElementById("soundBtn");
+  soundBtn.addEventListener("click", () => {
+    Sound.init();
+    const on = Sound.toggle();
+    Music.setEnabled(on);
+    soundBtn.textContent = on ? "🔊" : "🔇";
+  });
+
+  /* ------------------- 스킨 선택 UI ------------------- */
+  function buildSkinPicker() {
+    const row = document.getElementById("skinRow");
+    row.innerHTML = "";
+    SKINS.forEach((skin, i) => {
+      const el = document.createElement("div");
+      el.className = "skin-swatch" + (skin.id === currentSkin.id ? " active" : "");
+      el.style.background = skin.head;
+      const c = document.createElement("canvas");
+      c.width = 80; c.height = 80;
+      drawHeadPreview(c.getContext("2d"), skin);
+      el.appendChild(c);
+      el.addEventListener("click", () => {
+        currentSkin = skin;
+        localStorage.setItem("avoidGameSkin", i);
+        row.querySelectorAll(".skin-swatch").forEach(s => s.classList.remove("active"));
+        el.classList.add("active");
+        Sound.init(); Sound.play("item");
+      });
+      row.appendChild(el);
+    });
+  }
+  function drawHeadPreview(c, skin) {
+    c.clearRect(0,0,80,80); c.translate(40,46);
+    c.lineWidth = 4; c.strokeStyle = skin.stroke; c.fillStyle = skin.head;
+    c.beginPath(); c.arc(0,-8,16,0,Math.PI*2); c.fill(); c.stroke();
+    c.fillStyle = skin.stroke;
+    c.beginPath(); c.arc(-5,-11,2,0,Math.PI*2); c.arc(5,-11,2,0,Math.PI*2); c.fill();
+    if (skin.accessory) { c.save(); c.translate(0,40); c.scale(0.55,0.55); skin.accessory(c); c.restore(); }
+  }
+
+  /* ------------------- UI 갱신 ------------------- */
+  function updateUI() {
+    ui.score.textContent = Math.floor(state.score);
+    ui.best.textContent = state.best;
+    ui.life.textContent = state.life;
+    ui.level.textContent = state.level;
+  }
+  function renderBuffs() {
+    let html = "";
+    if (state.shieldTime > 0) html += `<div class="buff">🛡️ ${state.shieldTime.toFixed(1)}s</div>`;
+    if (state.slowTime > 0)   html += `<div class="buff">⏰ ${state.slowTime.toFixed(1)}s</div>`;
+    ui.buffBar.innerHTML = html;
+  }
+  function showToast(msg) {
+    ui.toast.textContent = msg;
+    ui.toast.classList.remove("show");
+    void ui.toast.offsetWidth; // 리플로우로 애니메이션 재시작
+    ui.toast.classList.add("show");
+  }
+
+  /* ------------------- ⑧ 난이도 ------------------- */
+  function currentFallSpeed() {
+    const mul = Math.min(CONFIG.difficulty.maxSpeedMul, 1 + (state.level - 1) * CONFIG.difficulty.speedStep);
+    return CONFIG.obstacle.baseSpeed * mul;
+  }
+  function currentSpawnInterval() {
+    return Math.max(CONFIG.difficulty.minSpawn, CONFIG.obstacle.baseSpawn - (state.level - 1) * CONFIG.difficulty.spawnStep);
+  }
+
+  /* ------------------- 스폰 ------------------- */
+  function spawnObstacle() {
+    const O = CONFIG.obstacle;
+    const size = random(O.minSize, O.maxSize);
+    const lv = state.level;
+    let type = "normal", sizeMul = 1, speedMul = 1;
+    const r = Math.random();
+    if (lv >= 4 && r > 0.85)      { type = "fast"; sizeMul = 0.85; speedMul = 1.5; }
+    else if (lv >= 6 && r > 0.78) { type = "big";  sizeMul = 1.4;  speedMul = 0.8; }
+    obstacles.push({
+      x: random(size, W - size), y: -size, size: size * sizeMul,
+      speedMul, type, wobble: random(0, Math.PI * 2), rotation: random(0, Math.PI * 2),
+    });
+  }
+  function spawnItem() {
+    const key = ITEM_KEYS[(Math.random() * ITEM_KEYS.length) | 0];
+    const s = CONFIG.item.size;
+    items.push({ x: random(s, W - s), y: -s, size: s, key, bob: random(0, Math.PI*2) });
+  }
+
+  /* ------------------- ⑨ 업데이트 ------------------- */
+  function update(dt) {
+    state.elapsed += dt;
+    state.score += CONFIG.scorePerSec * dt;
+
+    // 레벨업(10초마다) → 알림 + 난이도 상승
+    const newLevel = 1 + Math.floor(state.elapsed / CONFIG.difficulty.levelInterval);
+    if (newLevel > state.level) {
+      state.level = newLevel;
+      Sound.play("levelup");
+      showToast(`🔥 난이도 UP!  Lv.${state.level}`);
+      if (navigator.vibrate) navigator.vibrate(40);
+    }
+
+    // 버프 타이머
+    if (state.shieldTime > 0) state.shieldTime = Math.max(0, state.shieldTime - dt);
+    if (state.slowTime  > 0) state.slowTime  = Math.max(0, state.slowTime  - dt);
+
+    // 캐릭터 이동
+    const k = 1 - Math.exp(-CONFIG.player.followEase * dt);
+    player.x += (player.targetX - player.x) * k;
+    if (player.invincible > 0) player.invincible -= dt;
+
+    // 장애물 스폰
+    state.spawnTimer -= dt;
+    if (state.spawnTimer <= 0) { spawnObstacle(); state.spawnTimer = currentSpawnInterval(); }
+
+    // 아이템 스폰
+    state.itemTimer -= dt;
+    if (state.itemTimer <= 0) { spawnItem(); state.itemTimer = random(CONFIG.item.spawnMin, CONFIG.item.spawnMax); }
+
+    // 장애물 처리 (시계 효과로 속도 감소)
+    const slowMul = state.slowTime > 0 ? ITEMS.clock.slow : 1;
+    const fall = currentFallSpeed() * slowMul;
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      const o = obstacles[i];
+      o.y += fall * o.speedMul * dt;
+      o.wobble += dt * 2; o.rotation += dt * 0.4;
+      o.x += Math.sin(o.wobble) * CONFIG.obstacle.wobbleAmp * dt;
+      if (checkHit(o.x, o.y, o.size * 0.48)) { obstacles.splice(i, 1); hitPlayer(); continue; }
+      if (o.y > H + 80) { obstacles.splice(i, 1); state.score += CONFIG.dodgeBonus; }
+    }
+
+    // 아이템 처리
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      it.y += CONFIG.item.fallSpeed * dt;
+      it.bob += dt * 4;
+      if (collideItem(it)) { collectItem(it); items.splice(i, 1); continue; }
+      if (it.y > H + 60) items.splice(i, 1);
+    }
+
+    // 파티클
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt * 60; p.y += p.vy * dt * 60; p.vy += 0.15;
+      p.life -= dt; p.alpha = Math.max(0, p.life / p.maxLife);
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    updateUI();
+    renderBuffs();
+  }
+
+  function isInvincible() { return player.invincible > 0 || state.shieldTime > 0; }
+
+  function hitPlayer() {
+    if (isInvincible()) return;
+    state.life -= 1;
+    player.invincible = CONFIG.invincibleTime;
+    spawnParticles(player.x, player.y, "#3d3027", 18);
+    Sound.play("hit");
+    if (navigator.vibrate) navigator.vibrate(80);
+    if (state.life <= 0) gameOver();
+  }
+
+  function checkHit(ox, oy, or) {
+    if (isInvincible()) return false;
+    const px = player.x, py = player.y + CONFIG.player.hitOffsetY, pr = CONFIG.player.hitRadius;
+    return Math.hypot(px - ox, py - oy) < pr + or;
+  }
+  function collideItem(it) {
+    const px = player.x, py = player.y + CONFIG.player.hitOffsetY, pr = CONFIG.player.hitRadius;
+    return Math.hypot(px - it.x, py - it.y) < pr + it.size * 0.5;
+  }
+
+  function collectItem(it) {
+    const def = ITEMS[it.key];
+    spawnParticles(it.x, it.y, def.color, 14);
+    if (navigator.vibrate) navigator.vibrate(30);
+    if (it.key === "shield") { state.shieldTime = def.duration; Sound.play("shield"); showToast("🛡️ 방패 ON!"); }
+    else if (it.key === "star") { state.score += def.bonus; Sound.play("star"); showToast(`⭐ +${def.bonus}점!`); }
+    else if (it.key === "clock") { state.slowTime = def.duration; Sound.play("clock"); showToast("⏰ 슬로우!"); }
+  }
+
+  function spawnParticles(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+      particles.push({ x, y, vx: random(-3,3), vy: random(-4,1),
+        life: random(0.3,0.65), maxLife: 0.65, alpha: 1, size: random(3,8), color });
+    }
+  }
+
+  /* ------------------- ⑩ 그리기 ------------------- */
+  function drawBackground() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#fbf1e5"); g.addColorStop(1, "#ead4bd");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(255,255,255,0.25)";
+    for (let i = 0; i < 7; i++) {
+      const x = (i * 83 + state.elapsed * 12) % (W + 120) - 60;
+      drawCloud(x, 90 + i * 82, 0.75);
+    }
+    ctx.fillStyle = "rgba(80, 56, 36, 0.08)";
+    ctx.beginPath(); ctx.ellipse(W / 2, H + 20, W * 0.75, 90, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  function drawCloud(x, y, s) {
+    ctx.beginPath();
+    ctx.arc(x, y, 22*s, 0, Math.PI*2);
+    ctx.arc(x + 24*s, y - 8*s, 26*s, 0, Math.PI*2);
+    ctx.arc(x + 52*s, y, 20*s, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function drawPlayer() {
+    ctx.save();
+    const blink = player.invincible > 0 && Math.floor(state.elapsed * 11) % 2 === 0;
+    if (blink) ctx.globalAlpha = 0.35;
+    ctx.translate(player.x, player.y);
+
+    // 방패 오라
+    if (state.shieldTime > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.35 + Math.sin(state.elapsed * 8) * 0.12;
+      ctx.fillStyle = ITEMS.shield.color;
+      ctx.beginPath(); ctx.arc(0, -22, 46, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    const sk = currentSkin;
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.strokeStyle = sk.stroke; ctx.lineWidth = 4;
+
+    // 머리
+    ctx.fillStyle = sk.head;
+    ctx.beginPath(); ctx.arc(0, -52, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // 액세서리
+    if (sk.accessory) { ctx.save(); sk.accessory(ctx); ctx.restore(); }
+    // 눈
+    ctx.fillStyle = sk.stroke;
+    ctx.beginPath(); ctx.arc(-6,-55,2.2,0,Math.PI*2); ctx.arc(6,-55,2.2,0,Math.PI*2); ctx.fill();
+    // 입
+    ctx.strokeStyle = sk.stroke;
+    ctx.beginPath(); ctx.arc(0,-48,5,0.1,Math.PI-0.1); ctx.stroke();
+    // 몸
+    ctx.beginPath(); ctx.moveTo(0,-33); ctx.lineTo(0,12); ctx.stroke();
+    // 팔/다리
+    const armSwing = Math.sin(state.elapsed * 12) * 8;
+    ctx.beginPath(); ctx.moveTo(0,-18); ctx.lineTo(-22,-4+armSwing); ctx.moveTo(0,-18); ctx.lineTo(22,-4-armSwing); ctx.stroke();
+    const legSwing = Math.sin(state.elapsed * 14) * 5;
+    ctx.beginPath(); ctx.moveTo(0,12); ctx.lineTo(-16,42+legSwing); ctx.moveTo(0,12); ctx.lineTo(16,42-legSwing); ctx.stroke();
+    // 그림자
+    ctx.globalAlpha *= 0.16; ctx.fillStyle = "#3d3027";
+    ctx.beginPath(); ctx.ellipse(0,50,24,7,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawObstacle(o) {
+    ctx.save();
+    ctx.translate(o.x, o.y); ctx.rotate(o.rotation);
+    activeTheme.draw(ctx, o);
+    ctx.restore();
+  }
+
+  function drawItem(it) {
+    const def = ITEMS[it.key];
+    const yb = Math.sin(it.bob) * 4;
+    ctx.save();
+    ctx.translate(it.x, it.y + yb);
+    // 동그란 캡슐 배경
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.strokeStyle = def.color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, it.size * 0.55, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // 이모지 아이콘
+    ctx.font = `${it.size}px system-ui`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(def.emoji, 0, 1);
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color || "#3d3027";
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.restore();
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    drawBackground();
+    for (const o of obstacles) drawObstacle(o);
+    for (const it of items) drawItem(it);
+    drawParticles();
+    drawPlayer();
+  }
+
+  /* ------------------- 메인 루프 ------------------- */
+  function loop(now) {
+    if (gameState !== "playing") return;
+    let dt = (now - lastTime) / 1000; lastTime = now;
+    dt = Math.min(dt, 0.05);
+    update(dt); draw();
+    requestAnimationFrame(loop);
+  }
+
+  /* ------------------- 유틸 / 초기화 ------------------- */
+  function random(min, max) { return Math.random() * (max - min) + min; }
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+  buildSkinPicker();
+  resize();
+  draw();
+  </script>
+</body>
+</html>
