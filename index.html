@@ -183,12 +183,12 @@
     <!-- 시작 패널 -->
     <div id="startPanel" class="center-panel">
       <h1>당피하기</h1>
-      <p>떨어지는 것들을 피하고<br />아이템을 먹으며 살아남으세요!</p>
+      <p>🍩 떨어지는 설탕 과자(도넛·콜라·과자·초콜릿)는 피하고,<br />무설탕 캔디 <b>자일로큐브</b>를 드세요!</p>
       <div class="skin-label">캐릭터 선택</div>
       <div class="skin-row" id="skinRow"></div>
       <input id="startName" class="name-input" maxlength="8" placeholder="닉네임 (최대 8자)" />
       <button id="startBtn" class="btn">시작하기</button>
-      <div class="small-text">🛡️ 방패 · ⭐ 별 · ⏰ 시계를 노려보세요</div>
+      <div class="small-text">🟦 자일로큐브를 먹으면 점수 · 슬로우 · 보호!</div>
       <div class="rank-title">🏆 랭킹 TOP 10</div>
       <div class="rank-list" id="startRankList"></div>
       <div class="rank-reset" id="rankReset">🔄 랭킹 새로고침</div>
@@ -230,7 +230,7 @@
     dodgeBonus: 1,
     invincibleTime: 1.2,          // 피격 후 깜빡이는 무적
 
-    obstacleTheme: "poop",        // ← OBSTACLE_THEMES 키로 교체 (brand 등)
+    obstacleTheme: "sugar",       // ← OBSTACLE_THEMES 키 (설탕 과자류)
 
     player: {
       followEase: 7,
@@ -266,11 +266,11 @@
     },
   };
 
-  /* ------------------- ② 아이템 정의 ------------------- */
+  /* ------------------- ② 보너스 아이템: 자일로큐브 캔디(각설탕 모양) ------------------- */
   const ITEMS = {
-    shield: { emoji: "🛡️", color: "#5aa9e6", duration: 5,   label: "방패" },
-    star:   { emoji: "⭐", color: "#f6c945", bonus: 120,     label: "별" },
-    clock:  { emoji: "⏰", color: "#7ed6a5", duration: 4, slow: 0.45, label: "시계" },
+    star:   { color: "#f4d96b", bonus: 120, label: "점수" },          // 노랑 — 점수 UP
+    clock:  { color: "#8fc7e8", duration: 4, slow: 0.45, label: "슬로우" }, // 하늘 — 시간 느려짐
+    shield: { color: "#9ad6a6", duration: 5, label: "보호" },          // 민트 — 잠깐 무적
   };
   const ITEM_KEYS = Object.keys(ITEMS);
 
@@ -289,45 +289,70 @@
      o.size, o.type("normal"|"fast"|"big") 활용. 좌표는 (0,0) 중심.
      브랜드 캐릭터로 바꾸려면 새 테마를 추가하고 CONFIG.obstacleTheme 만 변경. */
   const OBSTACLE_THEMES = {
-    // 기본: 귀여운 똥
-    poop: {
-      colors: { normal: "#6b4a34", fast: "#86593c", big: "#523928" },
+    // 피해야 할 설탕 과자류: 도넛 · 콜라 · 과자봉지 · 초콜릿
+    sugar: {
+      kinds: ["donut", "cola", "snack", "choco"],
       draw(ctx, o) {
+        ctx.lineJoin = "round"; ctx.lineCap = "round";
         const s = o.size;
-        ctx.fillStyle = this.colors[o.type] || this.colors.normal;
-        ctx.strokeStyle = "#3a2a22"; ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(-s*0.45, s*0.25);
-        ctx.bezierCurveTo(-s*0.58,-s*0.05, -s*0.22,-s*0.16, -s*0.06,-s*0.25);
-        ctx.bezierCurveTo(-s*0.18,-s*0.42, s*0.08,-s*0.55, s*0.18,-s*0.33);
-        ctx.bezierCurveTo(s*0.48,-s*0.25, s*0.58,s*0.05, s*0.38,s*0.24);
-        ctx.bezierCurveTo(s*0.18,s*0.42, -s*0.22,s*0.42, -s*0.45,s*0.25);
-        ctx.closePath(); ctx.fill(); ctx.stroke();
-        ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(-s*0.12,-s*0.05, s*0.17, Math.PI*0.9, Math.PI*1.55); ctx.stroke();
-      }
-    },
-
-    // 예시 테마: 슬라임 몬스터 (브랜드 캐릭터 교체용 샘플)
-    slime: {
-      colors: { normal: "#8e7bd6", fast: "#e6748f", big: "#5fb0b0" },
-      draw(ctx, o) {
-        const s = o.size, col = this.colors[o.type] || this.colors.normal;
-        ctx.fillStyle = col; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-s*0.5, s*0.35);
-        ctx.quadraticCurveTo(-s*0.55,-s*0.5, 0,-s*0.5);
-        ctx.quadraticCurveTo(s*0.55,-s*0.5, s*0.5,s*0.35);
-        ctx.quadraticCurveTo(0,s*0.2, -s*0.5,s*0.35);
-        ctx.closePath(); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = "#fff";
-        ctx.beginPath(); ctx.arc(-s*0.16,-s*0.1, s*0.1,0,Math.PI*2); ctx.arc(s*0.16,-s*0.1, s*0.1,0,Math.PI*2); ctx.fill();
-        ctx.fillStyle = "#222";
-        ctx.beginPath(); ctx.arc(-s*0.16,-s*0.08, s*0.05,0,Math.PI*2); ctx.arc(s*0.16,-s*0.08, s*0.05,0,Math.PI*2); ctx.fill();
-      }
+        if (o.kind === "cola") this.cola(ctx, s);
+        else if (o.kind === "snack") this.snack(ctx, s);
+        else if (o.kind === "choco") this.choco(ctx, s);
+        else this.donut(ctx, s);
+      },
+      donut(ctx, s) {
+        const r = s * 0.5;
+        ctx.fillStyle = "#e0a45e"; ctx.strokeStyle = "rgba(90,60,30,0.35)"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#f48fb1";                                   // 핑크 글레이즈
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#f7efe3";                                   // 가운데 구멍
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2); ctx.fill();
+        const cols = ["#ffffff", "#7ec4ff", "#9be29b", "#ffe082"];   // 스프링클
+        for (let i = 0; i < 8; i++) {
+          const a = i / 8 * Math.PI * 2, rr = r * 0.62, x = Math.cos(a) * rr, y = Math.sin(a) * rr;
+          ctx.strokeStyle = cols[i % cols.length]; ctx.lineWidth = Math.max(1.5, s * 0.05);
+          ctx.beginPath(); ctx.moveTo(x - 2.5, y - 2.5); ctx.lineTo(x + 2.5, y + 2.5); ctx.stroke();
+        }
+      },
+      cola(ctx, s) {
+        const w = s * 0.6, h = s * 0.92, r = w * 0.24;
+        squirclePath(ctx, 0, 0, w, h, r);
+        ctx.fillStyle = "#c5303a"; ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = "#cfcfcf";                                   // 캔 윗부분
+        squirclePath(ctx, 0, -h / 2 + s * 0.04, w * 0.9, s * 0.12, s * 0.04); ctx.fill();
+        ctx.fillStyle = "#ffffff";                                   // 흰 라벨 띠
+        ctx.fillRect(-w * 0.46, -h * 0.1, w * 0.92, h * 0.22);
+        ctx.strokeStyle = "#c5303a"; ctx.lineWidth = Math.max(1.6, s * 0.045);
+        ctx.beginPath(); ctx.moveTo(-w * 0.32, h * 0.02); ctx.quadraticCurveTo(0, -h * 0.12, w * 0.32, h * 0.02); ctx.stroke();
+      },
+      snack(ctx, s) {
+        const w = s * 0.82, h = s * 0.95, r = s * 0.1;
+        squirclePath(ctx, 0, 0, w, h, r);
+        ctx.fillStyle = "#ff8a3d"; ctx.fill();                       // 주황 봉지
+        ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.25)";                    // 봉지 밀봉 띠
+        ctx.fillRect(-w / 2, -h / 2, w, h * 0.13);
+        ctx.fillRect(-w / 2, h / 2 - h * 0.13, w, h * 0.13);
+        ctx.fillStyle = "#fff3d6";                                   // 라벨
+        ctx.beginPath(); ctx.ellipse(0, 0, w * 0.3, h * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#e0762f";                                   // 감자칩 아이콘
+        ctx.beginPath(); ctx.ellipse(0, 0, w * 0.16, h * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+      },
+      choco(ctx, s) {
+        const w = s * 0.95, h = s * 0.7;
+        squirclePath(ctx, 0, 0, w, h, s * 0.1);
+        ctx.fillStyle = "#7a4a2b"; ctx.fill();
+        ctx.strokeStyle = "#5b3620"; ctx.lineWidth = 2; ctx.stroke();
+        ctx.strokeStyle = "rgba(40,20,10,0.5)"; ctx.lineWidth = Math.max(1.4, s * 0.03);
+        for (let i = 1; i < 3; i++) { const x = -w / 2 + w * i / 3; ctx.beginPath(); ctx.moveTo(x, -h / 2 + 3); ctx.lineTo(x, h / 2 - 3); ctx.stroke(); }
+        ctx.beginPath(); ctx.moveTo(-w / 2 + 3, 0); ctx.lineTo(w / 2 - 3, 0); ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w * 0.28, h * 0.2);
+      },
     },
   };
-  let activeTheme = OBSTACLE_THEMES[CONFIG.obstacleTheme] || OBSTACLE_THEMES.poop;
+  let activeTheme = OBSTACLE_THEMES[CONFIG.obstacleTheme] || OBSTACLE_THEMES.sugar;
 
   /* ------------------- ⑤ 효과음 모듈 -------------------
      WebAudio로 간단한 합성음을 냅니다. 실제 음원 파일로 바꾸려면
@@ -707,8 +732,9 @@
   function resetGame() {
     state.elapsed = 0; state.score = 0; state.life = CONFIG.startLife; state.level = 1;
     state.spawnTimer = 0; state.shieldTime = 0; state.slowTime = 0;
+    state.dying = false; state.dyingTimer = 0;
     state.itemTimer = random(CONFIG.item.spawnMin, CONFIG.item.spawnMax);
-    player.x = W / 2; player.targetX = W / 2; player.y = H - CONFIG.player.bottomGap; player.invincible = 0; player.facing = 1;
+    player.x = W / 2; player.targetX = W / 2; player.y = H - CONFIG.player.bottomGap; player.invincible = 0; player.facing = 1; player.hurt = 0;
     obstacles.length = 0; items.length = 0; particles.length = 0;
     updateUI(); renderBuffs();
   }
@@ -898,9 +924,14 @@
     const r = Math.random();
     if (lv >= 4 && r > 0.85)      { type = "fast"; sizeMul = 0.85; speedMul = 1.5; }
     else if (lv >= 6 && r > 0.78) { type = "big";  sizeMul = 1.4;  speedMul = 0.8; }
+    const kinds = activeTheme.kinds || ["donut"];
     obstacles.push({
       x: random(size, W - size), y: -size, size: size * sizeMul,
-      speedMul, type, wobble: random(0, Math.PI * 2), rotation: random(0, Math.PI * 2),
+      speedMul, type,
+      kind: kinds[(Math.random() * kinds.length) | 0],
+      wobble: random(0, Math.PI * 2),
+      rotation: random(-0.3, 0.3),
+      rotSpeed: random(-0.5, 0.5),     // 살짝만 흔들리며 떨어짐
     });
   }
   function spawnItem() {
@@ -911,6 +942,18 @@
 
   /* ------------------- ⑨ 업데이트 ------------------- */
   function update(dt) {
+    // 피격 사망 연출: 아파하는 표정/파티클만 잠깐 보여주고 게임오버
+    if (state.dying) {
+      state.dyingTimer -= dt;
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * dt * 60; p.y += p.vy * dt * 60; p.vy += 0.15;
+        p.life -= dt; p.alpha = Math.max(0, p.life / p.maxLife);
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+      if (state.dyingTimer <= 0) gameOver();
+      return;
+    }
     state.elapsed += dt;
     state.score += CONFIG.scorePerSec * dt;
 
@@ -943,6 +986,7 @@
     const k = 1 - Math.exp(-CONFIG.player.followEase * dt);
     player.x += (player.targetX - player.x) * k;
     if (player.invincible > 0) player.invincible -= dt;
+    if (player.hurt > 0) player.hurt -= dt;
 
     // 장애물 스폰 (가끔 한 번에 2개)
     state.spawnTimer -= dt;
@@ -962,7 +1006,7 @@
     for (let i = obstacles.length - 1; i >= 0; i--) {
       const o = obstacles[i];
       o.y += fall * o.speedMul * dt;
-      o.wobble += dt * 2; o.rotation += dt * 0.4;
+      o.wobble += dt * 2; o.rotation += (o.rotSpeed || 0) * dt;
       o.x += Math.sin(o.wobble) * CONFIG.obstacle.wobbleAmp * dt;
       if (checkHit(o.x, o.y, o.size * 0.48)) { obstacles.splice(i, 1); hitPlayer(); continue; }
       if (o.y > H + 80) { obstacles.splice(i, 1); state.score += CONFIG.dodgeBonus; }
@@ -992,13 +1036,15 @@
   function isInvincible() { return player.invincible > 0 || state.shieldTime > 0; }
 
   function hitPlayer() {
-    if (isInvincible()) return;
+    if (isInvincible() || state.dying) return;
     state.life -= 1;
     player.invincible = CONFIG.invincibleTime;
-    spawnParticles(player.x, player.y, "#3d3027", 18);
+    player.hurt = 1.0;                                  // 아파하는 표정 타이머
+    spawnParticles(player.x, player.y - 22, "#f3a0a4", 16);
     Sound.play("hit");
-    if (navigator.vibrate) navigator.vibrate(80);
-    if (state.life <= 0) gameOver();
+    if (navigator.vibrate) navigator.vibrate([60, 40, 90]);
+    // 사망: 아파하는 표정을 잠깐 보여준 뒤 게임오버
+    if (state.life <= 0) { state.dying = true; state.dyingTimer = 0.7; }
   }
 
   function checkHit(ox, oy, or) {
@@ -1071,28 +1117,31 @@
     const bob = Math.abs(Math.sin(run)) * 4;
     const sw = Math.sin(run);   // -1..1, 좌우 다리 교차
 
-    // 그림자 (땅에 고정, 점프할수록 작아짐)
+    const hurt = player.hurt > 0;   // 피격 시 아파하는 표정/흔들림
+
+    // 그림자 (발밑에 고정)
     ctx.save();
     ctx.globalAlpha *= 0.16; ctx.fillStyle = "#3d3027";
-    ctx.beginPath(); ctx.ellipse(0, 50, 24 - bob, 7 - bob * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 30, 22 - bob, 6 - bob * 0.4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
 
-    // 진행 방향(f)으로 향하기 + 속도에 따라 앞으로 기울이기
+    // 진행 방향(f) + 기울기, 피격 시 부르르 흔들림
     const f = player.facing || 1;                 // 1=오른쪽, -1=왼쪽
     const speed = Math.abs(player.targetX - player.x);
-    const lean = Math.min(0.45, 0.05 + speed * 0.03) * f;   // 진행 방향으로 숙임
-    ctx.translate(0, -bob);
-    ctx.translate(0, 12); ctx.rotate(lean); ctx.translate(0, -12);
+    const lean = hurt ? 0 : Math.min(0.4, 0.04 + speed * 0.028) * f;
+    const shake = hurt ? Math.sin(state.elapsed * 55) * 2.5 : 0;
+    ctx.translate(shake, -bob);
+    ctx.translate(0, 6); ctx.rotate(lean); ctx.translate(0, -6);
 
-    // ===== 영당이 캐릭터 (둥근 사각형 몸통 + 스틱 팔다리) =====
-    ctx.strokeStyle = sk.stroke; ctx.lineWidth = 4;
+    // ===== 영당이 (둥근 사각형 몸통 + 짧고 귀여운 팔다리) =====
+    ctx.strokeStyle = sk.stroke; ctx.lineWidth = 4.5;
 
-    // 다리: 몸통 아래에서 좌우 교차로 달리기 (앞발 들림)
+    // 다리 (짧은 스텁, 좌우 교차)
     const leg = (ph, bx) => {
       ctx.beginPath();
       ctx.moveTo(bx, 4);
-      ctx.lineTo(bx + f * ph * 8, 24 - Math.max(0, ph) * 3);
-      ctx.lineTo(bx + f * ph * 14, 44 - Math.max(0, ph) * 13);
+      ctx.lineTo(bx + f * ph * 5, 15 - Math.max(0, ph) * 2);
+      ctx.lineTo(bx + f * ph * 8, 25 - Math.max(0, ph) * 7);
       ctx.stroke();
     };
     leg(sw, -7); leg(-sw, 7);
@@ -1102,30 +1151,56 @@
     ctx.fillStyle = sk.body; ctx.fill();
     ctx.strokeStyle = "rgba(61,48,39,0.18)"; ctx.lineWidth = 3; ctx.stroke();
 
-    // 팔: 몸통 양옆에서 다리와 반대로 펌핑 (몸통 위에 보이게)
-    ctx.strokeStyle = sk.stroke; ctx.lineWidth = 4;
+    // 팔 (짧은 스텁, 다리와 반대로 살짝 펌핑 / 피격 시 위로 번쩍)
+    ctx.strokeStyle = sk.stroke; ctx.lineWidth = 4.5;
     const arm = (ph, side) => {
+      const up = hurt ? -8 : 0;
       ctx.beginPath();
-      ctx.moveTo(side * 23, -26);
-      ctx.lineTo(side * 23 + f * ph * 9, -17);
-      ctx.lineTo(side * 23 + f * ph * 13, -9 - Math.max(0, ph) * 4);
+      ctx.moveTo(side * 24, -26);
+      ctx.lineTo(side * 24 + f * ph * 5, -20 + up);
+      ctx.lineTo(side * 24 + f * ph * 8, -15 + up - Math.max(0, ph) * 3);
       ctx.stroke();
     };
     arm(-sw, -1); arm(sw, 1);
 
     // 볼터치
-    ctx.fillStyle = "rgba(240,130,140,0.35)";
-    ctx.beginPath(); ctx.arc(f * 0, -16, 4, 0, Math.PI * 2); ctx.arc(f * 16, -16, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(240,130,140,0.4)";
+    ctx.beginPath(); ctx.arc(f * 0, -16, 4.2, 0, Math.PI * 2); ctx.arc(f * 16, -16, 4.2, 0, Math.PI * 2); ctx.fill();
 
-    // 눈 (진행 방향 앞쪽을 바라봄)
-    ctx.fillStyle = sk.stroke;
-    ctx.beginPath();
-    ctx.arc(f * 4, -28, 2.7, 0, Math.PI * 2);
-    ctx.arc(f * 12, -28, 2.7, 0, Math.PI * 2);
-    ctx.fill();
-    // 입 (미소)
-    ctx.strokeStyle = sk.stroke; ctx.lineWidth = 2.6;
-    ctx.beginPath(); ctx.arc(f * 8, -22, 4, 0.15, Math.PI - 0.15); ctx.stroke();
+    if (!hurt) {
+      // 깜찍한 표정: 동그란 눈 + 하이라이트 + 미소
+      ctx.fillStyle = sk.stroke;
+      ctx.beginPath();
+      ctx.arc(f * 4, -29, 3.2, 0, Math.PI * 2);
+      ctx.arc(f * 12, -29, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(f * 4 + 1, -30.2, 1.1, 0, Math.PI * 2);
+      ctx.arc(f * 12 + 1, -30.2, 1.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = sk.stroke; ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.arc(f * 8, -23, 3.6, 0.15, Math.PI - 0.15); ctx.stroke();
+    } else {
+      // 아파하는 표정: >< 눈 + 벌린 입 + 눈물 + 통증 표시
+      ctx.strokeStyle = sk.stroke; ctx.lineWidth = 2.8;
+      const eyeX = (ex) => {
+        ctx.beginPath();
+        ctx.moveTo(ex - 3.2, -31); ctx.lineTo(ex + 3.2, -27);
+        ctx.moveTo(ex + 3.2, -31); ctx.lineTo(ex - 3.2, -27);
+        ctx.stroke();
+      };
+      eyeX(f * 4); eyeX(f * 12);
+      ctx.fillStyle = sk.stroke;
+      ctx.beginPath(); ctx.ellipse(f * 8, -19, 2.8, 3.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#7ec4ff";
+      ctx.beginPath(); ctx.arc(f * 1, -24, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#e0556f"; ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(-30, -46); ctx.lineTo(-25, -42);
+      ctx.moveTo(31, -46); ctx.lineTo(26, -42);
+      ctx.stroke();
+    }
 
     ctx.restore();
   }
@@ -1137,19 +1212,29 @@
     ctx.restore();
   }
 
+  // 자일로큐브 캔디 (모서리가 둥근 각설탕 + 깜찍한 얼굴)
   function drawItem(it) {
     const def = ITEMS[it.key];
     const yb = Math.sin(it.bob) * 4;
+    const s = it.size;
     ctx.save();
     ctx.translate(it.x, it.y + yb);
-    // 동그란 캡슐 배경
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.strokeStyle = def.color; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(0, 0, it.size * 0.55, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    // 이모지 아이콘
-    ctx.font = `${it.size}px system-ui`;
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(def.emoji, 0, 1);
+    ctx.rotate(Math.sin(it.bob) * 0.12);
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    // 큐브 본체
+    squirclePath(ctx, 0, 0, s, s, s * 0.3);
+    ctx.fillStyle = def.color; ctx.fill();
+    ctx.strokeStyle = "rgba(61,48,39,0.25)"; ctx.lineWidth = 3; ctx.stroke();
+    // 반짝 하이라이트
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    squirclePath(ctx, -s * 0.2, -s * 0.2, s * 0.28, s * 0.28, s * 0.1); ctx.fill();
+    // 깜찍한 얼굴
+    ctx.fillStyle = "#3d3027";
+    ctx.beginPath(); ctx.arc(-s * 0.15, s * 0.04, s * 0.06, 0, Math.PI * 2); ctx.arc(s * 0.15, s * 0.04, s * 0.06, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#3d3027"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, s * 0.1, s * 0.12, 0.2, Math.PI - 0.2); ctx.stroke();
+    ctx.fillStyle = "rgba(240,130,140,0.4)";
+    ctx.beginPath(); ctx.arc(-s * 0.24, s * 0.14, s * 0.06, 0, Math.PI * 2); ctx.arc(s * 0.24, s * 0.14, s * 0.06, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
