@@ -191,7 +191,7 @@
       <div class="small-text">🛡️ 방패 · ⭐ 별 · ⏰ 시계를 노려보세요</div>
       <div class="rank-title">🏆 랭킹 TOP 10</div>
       <div class="rank-list" id="startRankList"></div>
-      <div class="rank-reset" id="rankReset">기록 초기화</div>
+      <div class="rank-reset" id="rankReset">🔄 랭킹 새로고침</div>
     </div>
 
     <!-- 게임오버 패널 -->
@@ -562,8 +562,24 @@
 
   ui.best.textContent = state.best;
 
-  /* ------------------- 닉네임 / 로컬 랭킹 (TOP 10) ------------------- */
-  const RANK_KEY = "avoidGameRanks";
+  /* ------------------- 닉네임 / 온라인 랭킹 (전 세계 TOP 10) -------------------
+     백엔드: dreamlo 무료 리더보드(계정 불필요).
+     dreamlo 무료는 HTTP만 지원 → HTTPS 페이지에서 쓰려고 CORS 프록시 경유.
+     프록시는 여러 개를 순서대로 시도하고, 모두 실패하면 로컬 캐시로 대체. */
+  const LB = {
+    priv: "ybHNBvxQSk2dTGmp3Ii6vAGUS6rhDSX0-gUD7iURFnug",  // 쓰기 코드
+    pub:  "6a4085c08f40bb13183e2dd4",                       // 읽기 코드
+    base: "http://dreamlo.com/lb",
+    // 우선순위대로 시도 (브라우저 환경에서 동작)
+    proxies: [
+      (u) => "https://corsproxy.io/?url=" + encodeURIComponent(u),
+      (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+      (u) => "https://api.allorigins.win/get?url=" + encodeURIComponent(u),
+      (u) => "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(u),
+    ],
+  };
+  const RANK_KEY = "avoidGameRanks";   // 마지막 성공 랭킹 로컬 캐시
+
   let nickname = (localStorage.getItem("avoidGameName") || "나").slice(0, 8);
   ui.startName.value = nickname;
   ui.startName.addEventListener("input", () => {
@@ -571,44 +587,75 @@
     localStorage.setItem("avoidGameName", nickname);
   });
 
-  function loadRanks() {
-    try { return JSON.parse(localStorage.getItem(RANK_KEY) || "[]"); }
-    catch (_) { return []; }
+  // 유니코드(한글/이모지) 안전한 base64url 인코딩 (URL 경로에 그대로 사용 가능)
+  function b64e(s) {
+    return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
-  function saveRanks(r) { localStorage.setItem(RANK_KEY, JSON.stringify(r.slice(0, 10))); }
-  // 점수 등록 후 { ranks(상위10), entry(방금 기록), rank(1-based) } 반환
-  function addRankEntry(name, score, level) {
-    const ranks = loadRanks();
-    const entry = { name: name, score: score, level: level };
-    ranks.push(entry);
-    ranks.sort((a, b) => b.score - a.score);
-    const rank = ranks.indexOf(entry) + 1;
-    saveRanks(ranks);
-    return { ranks: ranks.slice(0, 10), entry: entry, rank: rank };
+  function b64d(s) {
+    try { return decodeURIComponent(escape(atob(String(s).replace(/-/g, "+").replace(/_/g, "/")))); }
+    catch (_) { return s; }
   }
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
+
+  // 프록시들을 순서대로 시도해 응답 텍스트를 반환
+  async function lbFetchText(inner) {
+    let lastErr;
+    for (const mk of LB.proxies) {
+      const url = mk(inner);
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) { lastErr = new Error("HTTP " + res.status); continue; }
+        let text = await res.text();
+        if (url.indexOf("/get?") !== -1) {           // allorigins/get 은 {contents} 래핑
+          try { text = JSON.parse(text).contents; } catch (_) {}
+        }
+        return text;
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error("all proxies failed");
+  }
+
+  async function lbSubmit(name, score, level) {
+    const inner = `${LB.base}/${LB.priv}/add/${b64e(name)}/${Math.floor(score)}/0/${level || 1}`;
+    await lbFetchText(inner);
+  }
+  async function lbTop(n) {
+    const inner = `${LB.base}/${LB.pub}/json/${n || 10}`;
+    const text = await lbFetchText(inner);
+    const data = JSON.parse(text);
+    let e = (data && data.dreamlo && data.dreamlo.leaderboard) ? data.dreamlo.leaderboard.entry : null;
+    if (!e) return [];
+    if (!Array.isArray(e)) e = [e];
+    return e.map((x) => ({ name: b64d(x.name), score: Number(x.score), level: x.text }));
+  }
+
+  function loadCache() { try { return JSON.parse(localStorage.getItem(RANK_KEY) || "[]"); } catch (_) { return []; } }
+  function saveCache(list) { localStorage.setItem(RANK_KEY, JSON.stringify(list.slice(0, 10))); }
+
   function renderRanking(container, ranks, highlight) {
-    if (!ranks.length) { container.innerHTML = '<div class="rank-empty">아직 기록이 없어요. 1등에 도전!</div>'; return; }
+    if (!ranks || !ranks.length) { container.innerHTML = '<div class="rank-empty">아직 기록이 없어요. 1등에 도전!</div>'; return; }
     const medal = ["🥇", "🥈", "🥉"];
-    container.innerHTML = ranks.map((r, i) => {
+    container.innerHTML = ranks.slice(0, 10).map((r, i) => {
       const pos = medal[i] || (i + 1);
-      const hl = (r === highlight) ? " rank-new" : "";
-      return `<div class="rank-row${hl}"><span class="rank-pos">${pos}</span>` +
+      const isHL = (typeof highlight === "function") ? highlight(r) : (r === highlight);
+      return `<div class="rank-row${isHL ? " rank-new" : ""}"><span class="rank-pos">${pos}</span>` +
              `<span class="rank-name">${escapeHtml(r.name)}</span>` +
              `<span class="rank-score">${r.score}</span></div>`;
     }).join("");
   }
-  renderRanking(ui.startRankList, loadRanks(), null);   // 시작 화면 랭킹
 
-  ui.rankReset.addEventListener("click", () => {
-    if (confirm("랭킹 기록을 모두 지울까요?")) {
-      localStorage.removeItem(RANK_KEY);
-      renderRanking(ui.startRankList, [], null);
-    }
-  });
+  // 시작 화면: 캐시 먼저 보여주고 온라인으로 갱신
+  function refreshStartBoard() {
+    renderRanking(ui.startRankList, loadCache(), null);
+    lbTop(10).then((list) => { saveCache(list); renderRanking(ui.startRankList, list, null); }).catch(() => {});
+  }
+  refreshStartBoard();
+
+  // "새로고침" 버튼 (예전 '초기화' 자리 재활용)
+  ui.rankReset.addEventListener("click", refreshStartBoard);
 
   /* ------------------- 캔버스 / 뷰포트 ------------------- */
   function setVh() {
@@ -673,12 +720,23 @@
     ui.finalLevel.textContent = state.level;
     ui.shareText.textContent = buildShareText(finalScore, state.level);
 
-    // 랭킹 등록 + 표시
-    const res = addRankEntry(nickname, finalScore, state.level);
-    if (res.rank <= 10) ui.rankMsg.textContent = `🎉 ${res.rank}위 등극!`;
-    else ui.rankMsg.textContent = `아쉽게 ${res.rank}위 (TOP 10 실패)`;
-    renderRanking(ui.overRankList, res.ranks, res.entry);
-    renderRanking(ui.startRankList, res.ranks, null);  // 시작 화면도 갱신
+    // 온라인 랭킹 등록 + 표시 (개인 최고기록을 등록 → 같은 닉네임은 최고점 유지)
+    ui.rankMsg.textContent = "🌍 온라인 랭킹 등록 중...";
+    ui.overRankList.innerHTML = '<div class="rank-empty">불러오는 중...</div>';
+    (async () => {
+      try {
+        await lbSubmit(nickname, state.best, state.level);
+        const list = await lbTop(10);
+        saveCache(list);
+        const myIdx = list.findIndex((e) => e.name === nickname);
+        ui.rankMsg.textContent = (myIdx >= 0) ? `🌍 전체 ${myIdx + 1}위!` : "기록 등록 완료 🌍";
+        renderRanking(ui.overRankList, list, (r) => r.name === nickname);
+        renderRanking(ui.startRankList, list, null);
+      } catch (err) {
+        ui.rankMsg.textContent = "⚠️ 온라인 연결 실패 — 저장된 랭킹 표시";
+        renderRanking(ui.overRankList, loadCache(), null);
+      }
+    })();
 
     ui.overPanel.classList.remove("hidden");
   }
