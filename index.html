@@ -7,6 +7,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>당피하기</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Black+Han+Sans&display=swap" rel="stylesheet">
 
   <style>
     * {
@@ -21,10 +24,14 @@
       width: 100%; height: 100%;
       overflow: hidden;
       background: #f7efe3;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif;
+      font-family: 'Jua', system-ui, -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif;
       touch-action: none;
       overscroll-behavior: none;
     }
+    /* 제목: 두껍고 동글한 글꼴 */
+    .game-title, .center-panel h1 { font-family: 'Black Han Sans', 'Jua', sans-serif; }
+    /* 강조 글귀: 두껍고 색다르게 */
+    b, strong { font-family: 'Black Han Sans', 'Jua', sans-serif; font-weight: 400; color: #e0556f; }
 
     #gameWrap {
       position: fixed; inset: 0;
@@ -65,12 +72,13 @@
       display: flex; flex-direction: column; gap: 5px;
     }
     .legend-row {
-      display: flex; align-items: center; gap: 7px;
-      font-size: 12px; font-weight: 800; color: #5b4a3d;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: #5b4a3d;
       background: rgba(255,252,246,0.72); border-radius: 999px;
-      padding: 3px 10px 3px 4px;
+      padding: 2px 12px 2px 3px;
     }
-    .legend-cube { width: 15px; height: 15px; border-radius: 5px; box-shadow: inset 0 0 0 1.5px rgba(61,48,39,0.18); }
+    .legend-cv { width: 22px; height: 22px; }
+    .legend-eat { margin-top: 3px; font-size: 13px; color: #e0556f; padding-left: 4px; }
 
     /* ===== 효과 배지 (방패/시계 남은시간) ===== */
     #buffBar {
@@ -195,11 +203,12 @@
     <button id="soundBtn">🔊</button>
     <div id="buffBar"></div>
 
-    <!-- 좌측 상단: 자일로큐브 색깔별 효과 안내 -->
+    <!-- 좌측 상단: 자일로큐브(영당이) 효과 안내 (표정 그대로) -->
     <div id="legend">
-      <div class="legend-row"><span class="legend-cube" style="background:#f4d96b"></span>점수 +</div>
-      <div class="legend-row"><span class="legend-cube" style="background:#8fc7e8"></span>느려짐</div>
-      <div class="legend-row"><span class="legend-cube" style="background:#9ad6a6"></span>방패</div>
+      <div class="legend-row"><canvas class="legend-cv" id="lgStar" width="44" height="44"></canvas>점수 +</div>
+      <div class="legend-row"><canvas class="legend-cv" id="lgClock" width="44" height="44"></canvas>느려짐</div>
+      <div class="legend-row"><canvas class="legend-cv" id="lgShield" width="44" height="44"></canvas>방패</div>
+      <div class="legend-eat">영당이를 먹어랑!</div>
     </div>
 
     <!-- 시작 패널 -->
@@ -208,7 +217,7 @@
       <p>안녕! 나는 <b>영당이</b>당 🍬<br />
          하늘에서 쏟아지는 도넛·콜라·과자·초콜릿 같은 <b>설탕 과자</b>를 요리조리 피해야 한당!<br />
          딱 한 번만 맞아도 쓰러진당 💥<br />
-         대신 둥근 <b>자일로큐브</b>를 먹으면 점수도 오르고, 느려지거나 방패도 생긴당 ✨</p>
+         대신 큐브모양의 <b>자일로큐브 영당이</b>를 먹으면 점수도 오르고, 느려지거나 방패도 생긴당 ✨</p>
       <div class="skin-label">캐릭터 선택</div>
       <div class="skin-row" id="skinRow"></div>
       <input id="startName" class="name-input" maxlength="8" placeholder="닉네임 (최대 8자)" />
@@ -416,6 +425,34 @@
     toggle() { this.enabled = !this.enabled; return this.enabled; },
   };
 
+  /* ------------------- ⑤-1 음성(말풍선 효과음) — "영당"/"살찐당" -------------------
+     Web Speech API(speechSynthesis)로 한국어를 말합니다. (외부 파일 불필요)
+     기기에 한국어 음성이 있으면 더 자연스럽게 들립니다. */
+  const Speak = {
+    voice: null,
+    pick() {
+      if (!window.speechSynthesis) return;
+      const vs = window.speechSynthesis.getVoices();
+      this.voice = vs.find((v) => /ko/i.test(v.lang)) || null;
+    },
+    say(text, pitch, rate) {
+      if (!Sound.enabled || !window.speechSynthesis) return;
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = "ko-KR";
+        u.pitch = (pitch == null) ? 1.5 : pitch;
+        u.rate = (rate == null) ? 1.15 : rate;
+        if (this.voice) u.voice = this.voice;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      } catch (_) {}
+    },
+  };
+  if (window.speechSynthesis) {
+    try { window.speechSynthesis.onvoiceschanged = () => Speak.pick(); } catch (_) {}
+    Speak.pick();
+  }
+
   /* ------------------- ⑤-2 배경음악(BGM) 모듈 -------------------
      절차적 스텝 시퀀서. state.level 이 오를수록
        · BPM(템포)이 빨라지고
@@ -431,15 +468,15 @@
     nextTime: 0,
     timer: null,
     cfg: {
-      baseBpm: 86,        // Lv.1 템포
-      bpmPerLevel: 13,    // 레벨당 +BPM (심장 쫄리게)
-      maxBpm: 212,        // 최고 템포 상한
-      lookahead: 0.12,    // 미리 예약할 시간(초)
-      tickMs: 25,         // 스케줄러 주기
-      volume: 0.26,
+      baseBpm: 120,       // Lv.1 템포 (통통 튀는 기본)
+      bpmPerLevel: 4,     // 레벨당 +BPM (살짝만 빨라져 계속 밝고 귀엽게)
+      maxBpm: 150,        // 상한 (너무 급해지지 않게)
+      lookahead: 0.12,
+      tickMs: 25,
+      volume: 0.24,
     },
-    scale: [0, 2, 3, 5, 7, 8, 10],  // 자연 단음계 → 긴장감
-    root: 110,                       // A2
+    scale: [0, 2, 4, 7, 9, 12],     // 메이저 펜타토닉 → 밝고 귀여움
+    root: 130.81,                    // C3
 
     ensure() {
       Sound.init();
@@ -532,30 +569,22 @@
       osc.start(time); osc.stop(time + 0.04);
     },
     scheduleStep(step, time) {
-      const lvl = state.level;
-      const tension = Math.min(1, (lvl - 1) / 8);     // 0~1 긴장도
-      const cutoff = 700 + tension * 4500;            // 밝아질수록 급박
+      const bright = 2600;   // 항상 밝은 음색
 
-      // 베이스 라인 (4분음표 위치)
-      const BASS = [0, null, null, null, 5, null, null, null, 3, null, null, null, 7, null, null, null];
-      if (BASS[step] !== null) this.voice(this.freq(BASS[step], -1), time, 0.22, "sawtooth", 0.24, cutoff);
+      // 통통 튀는 베이스: I → V → vi → IV (밝고 귀여운 진행)
+      const prog = [0, 7, 9, 5];
+      const chord = prog[Math.floor(step / 4) % 4];
+      if (step % 4 === 0) this.voice(this.freq(chord, -1), time, 0.18, "triangle", 0.22, bright);
+      if (step % 4 === 2) this.voice(this.freq(chord, 0), time, 0.12, "triangle", 0.12, bright); // 옥타브 바운스
 
-      // 킥: 기본 4비트 + 고레벨에서 8비트
+      // 가벼운 킥 + 밝은 하이햇 (일정하게, 급박하지 않게)
       if (step % 4 === 0) this.kick(time);
-      if (lvl >= 5 && step % 4 === 2) this.kick(time);
+      if (step % 2 === 1) this.hat(time, 0.6);
 
-      // 하이햇: 레벨 오를수록 촘촘하게
-      if (lvl >= 2 && step % 2 === 0) this.hat(time, 0.7 + tension);
-      if (lvl >= 4 && step % 2 === 1) this.hat(time, 0.5 + tension);
-
-      // 긴장 아르페지오: 레벨 3+, 밀도/음역 상승
-      if (lvl >= 3) {
-        const every = lvl >= 7 ? 1 : 2;
-        if (step % every === 0) {
-          const idx = (step + lvl) % this.scale.length;
-          this.voice(this.freq(this.scale[idx], 1), time, 0.12, "square", 0.05 + tension * 0.05, cutoff);
-        }
-      }
+      // 귀여운 멜로디 (메이저 펜타토닉 아르페지오)
+      const MEL = [0, null, 2, null, 3, null, 2, null, 4, null, 3, null, 2, null, 1, null];
+      const m = MEL[step];
+      if (m !== null) this.voice(this.freq(this.scale[m], 1), time, 0.16, "triangle", 0.085, bright);
     },
   };
 
@@ -1068,8 +1097,8 @@
     spawnParticles(player.x, player.y - 22, "#f3a0a4", 16);
     Sound.play("hit");
     if (navigator.vibrate) navigator.vibrate([60, 40, 90]);
-    // 사망: 아파하는 표정을 잠깐 보여준 뒤 게임오버
-    if (state.life <= 0) { state.dying = true; state.dyingTimer = 0.7; }
+    // 사망: 아파하는 표정을 잠깐 보여준 뒤 게임오버 + "살찐당!"
+    if (state.life <= 0) { state.dying = true; state.dyingTimer = 0.9; Speak.say("살찐당", 1.2, 1.0); }
   }
 
   function checkHit(ox, oy, or) {
@@ -1086,6 +1115,7 @@
     const def = ITEMS[it.key];
     spawnParticles(it.x, it.y, def.color, 14);
     if (navigator.vibrate) navigator.vibrate(30);
+    Speak.say("영당", 1.7, 1.25);   // 먹을 때마다 "영당!"
     if (it.key === "shield") { state.shieldTime = def.duration; Sound.play("shield"); showToast("🛡️ 방패 ON!"); }
     else if (it.key === "star") { state.score += def.bonus; Sound.play("star"); showToast(`⭐ +${def.bonus}점!`); }
     else if (it.key === "clock") { state.slowTime = def.duration; Sound.play("clock"); showToast("⏰ 슬로우!"); }
@@ -1237,30 +1267,42 @@
     ctx.restore();
   }
 
-  // 자일로큐브 캔디 (모서리가 둥근 각설탕 + 깜찍한 얼굴)
+  // 자일로큐브 영당이 캔디 (모서리 둥근 큐브 + 깜찍한 얼굴) — 게임/범례 공용
+  function drawCandyCube(c, cx, cy, s, color) {
+    c.save();
+    c.translate(cx, cy);
+    c.lineJoin = "round"; c.lineCap = "round";
+    squirclePath(c, 0, 0, s, s, s * 0.3);
+    c.fillStyle = color; c.fill();
+    c.strokeStyle = "rgba(61,48,39,0.25)"; c.lineWidth = Math.max(1.5, s * 0.09); c.stroke();
+    // 반짝 하이라이트
+    c.fillStyle = "rgba(255,255,255,0.5)";
+    squirclePath(c, -s * 0.2, -s * 0.2, s * 0.28, s * 0.28, s * 0.1); c.fill();
+    // 깜찍한 얼굴
+    c.fillStyle = "#3d3027";
+    c.beginPath(); c.arc(-s * 0.15, s * 0.04, s * 0.07, 0, Math.PI * 2); c.arc(s * 0.15, s * 0.04, s * 0.07, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = "#3d3027"; c.lineWidth = Math.max(1.4, s * 0.06);
+    c.beginPath(); c.arc(0, s * 0.1, s * 0.12, 0.2, Math.PI - 0.2); c.stroke();
+    c.fillStyle = "rgba(240,130,140,0.45)";
+    c.beginPath(); c.arc(-s * 0.24, s * 0.14, s * 0.07, 0, Math.PI * 2); c.arc(s * 0.24, s * 0.14, s * 0.07, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
   function drawItem(it) {
     const def = ITEMS[it.key];
     const yb = Math.sin(it.bob) * 4;
-    const s = it.size;
     ctx.save();
     ctx.translate(it.x, it.y + yb);
     ctx.rotate(Math.sin(it.bob) * 0.12);
-    ctx.lineJoin = "round"; ctx.lineCap = "round";
-    // 큐브 본체
-    squirclePath(ctx, 0, 0, s, s, s * 0.3);
-    ctx.fillStyle = def.color; ctx.fill();
-    ctx.strokeStyle = "rgba(61,48,39,0.25)"; ctx.lineWidth = 3; ctx.stroke();
-    // 반짝 하이라이트
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    squirclePath(ctx, -s * 0.2, -s * 0.2, s * 0.28, s * 0.28, s * 0.1); ctx.fill();
-    // 깜찍한 얼굴
-    ctx.fillStyle = "#3d3027";
-    ctx.beginPath(); ctx.arc(-s * 0.15, s * 0.04, s * 0.06, 0, Math.PI * 2); ctx.arc(s * 0.15, s * 0.04, s * 0.06, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#3d3027"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, s * 0.1, s * 0.12, 0.2, Math.PI - 0.2); ctx.stroke();
-    ctx.fillStyle = "rgba(240,130,140,0.4)";
-    ctx.beginPath(); ctx.arc(-s * 0.24, s * 0.14, s * 0.06, 0, Math.PI * 2); ctx.arc(s * 0.24, s * 0.14, s * 0.06, 0, Math.PI * 2); ctx.fill();
+    drawCandyCube(ctx, 0, 0, it.size, def.color);
     ctx.restore();
+  }
+  // 좌측 상단 범례 큐브 렌더 (표정 그대로)
+  function drawLegendCubes() {
+    [["lgStar", ITEMS.star.color], ["lgClock", ITEMS.clock.color], ["lgShield", ITEMS.shield.color]].forEach(([id, col]) => {
+      const cv = document.getElementById(id); if (!cv) return;
+      const c = cv.getContext("2d"); c.clearRect(0, 0, cv.width, cv.height);
+      drawCandyCube(c, 22, 22, 28, col);
+    });
   }
 
   function drawParticles() {
@@ -1293,6 +1335,7 @@
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
   buildSkinPicker();
+  drawLegendCubes();
   resize();
   draw();
   </script>
