@@ -468,6 +468,16 @@
     Speak.pick();
   }
 
+  // 첨부 영상에서 추출한 맛 이름 음성(망고/키위/블루소다/스트로베리/레몬/자두)
+  // 아이템 먹을 때마다 무작위로 1개 재생
+  const FLAVOR_VOICES = ["voice1.mp3", "voice2.mp3", "voice3.mp3", "voice4.mp3", "voice5.mp3", "voice6.mp3"]
+    .map((s) => { const a = new Audio(s); a.preload = "auto"; return a; });
+  function playFlavor() {
+    if (!Sound.enabled || !FLAVOR_VOICES.length) return;
+    const base = FLAVOR_VOICES[(Math.random() * FLAVOR_VOICES.length) | 0];
+    try { const n = base.cloneNode(true); n.volume = 1.0; const p = n.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {}
+  }
+
   /* ------------------- ⑤-2 배경음악(BGM) 모듈 -------------------
      절차적 스텝 시퀀서. state.level 이 오를수록
        · BPM(템포)이 빨라지고
@@ -1171,7 +1181,7 @@
     const def = ITEMS[it.key];
     spawnParticles(it.x, it.y, def.color, 14);
     if (navigator.vibrate) navigator.vibrate(30);
-    Speak.say("영당", 2.0, 1.05);   // 먹을 때마다 "영당!" (높고 귀엽게)
+    playFlavor();   // 먹을 때마다 맛 이름(망고/키위/블루소다/스트로베리/레몬/자두)
     if (it.key === "shield") { state.shieldTime = def.duration; Sound.play("shield"); showToast("🛡️ 방패 ON!"); }
     else if (it.key === "star") { state.score += def.bonus; Sound.play("star"); showToast(`⭐ +${def.bonus}점!`); }
     else if (it.key === "clock") { state.slowTime = def.duration; Sound.play("clock"); showToast("⏰ 슬로우!"); }
