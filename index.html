@@ -112,6 +112,27 @@
       word-break: keep-all;
     }
 
+    /* ===== 닉네임 / 랭킹 ===== */
+    .name-input {
+      width: 100%; border: 2px solid rgba(73,52,37,0.15); border-radius: 14px;
+      padding: 12px; font-size: 15px; text-align: center; margin-bottom: 12px;
+      font-weight: 700; color: #3d3027; background: #fffdf9; outline: none;
+    }
+    .name-input:focus { border-color: #d24a72; }
+    .rank-title { font-size: 14px; font-weight: 900; color: #6c5a4b; margin: 18px 0 8px; }
+    .rank-list { display: flex; flex-direction: column; gap: 4px; }
+    .rank-row {
+      display: flex; align-items: center; font-size: 14px; font-weight: 700;
+      color: #5b4a3d; background: rgba(61,48,39,0.05); border-radius: 10px; padding: 7px 10px;
+    }
+    .rank-row.rank-new { background: #ffe0a3; color: #3d3027; }
+    .rank-pos { width: 30px; text-align: center; font-weight: 900; }
+    .rank-name { flex: 1; text-align: left; padding-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-score { font-weight: 900; }
+    .rank-empty { font-size: 13px; color: #8b7868; padding: 10px; }
+    .rank-msg { font-size: 17px; font-weight: 900; color: #e1577d; margin-bottom: 12px; }
+    .rank-reset { font-size: 12px; color: #b0a194; margin-top: 12px; cursor: pointer; text-decoration: underline; }
+
     .bottom-hint {
       position: absolute; left: 50%;
       bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%);
@@ -165,15 +186,22 @@
       <p>떨어지는 것들을 피하고<br />아이템을 먹으며 살아남으세요!</p>
       <div class="skin-label">캐릭터 선택</div>
       <div class="skin-row" id="skinRow"></div>
+      <input id="startName" class="name-input" maxlength="8" placeholder="닉네임 (최대 8자)" />
       <button id="startBtn" class="btn">시작하기</button>
       <div class="small-text">🛡️ 방패 · ⭐ 별 · ⏰ 시계를 노려보세요</div>
+      <div class="rank-title">🏆 랭킹 TOP 10</div>
+      <div class="rank-list" id="startRankList"></div>
+      <div class="rank-reset" id="rankReset">기록 초기화</div>
     </div>
 
     <!-- 게임오버 패널 -->
     <div id="gameOverPanel" class="center-panel hidden">
       <h1>게임오버</h1>
       <p>최종 점수 <b id="finalScore">0</b>점 · Lv.<span id="finalLevel">1</span></p>
-      <div id="shareText"></div>
+      <div id="rankMsg" class="rank-msg"></div>
+      <div class="rank-title">🏆 랭킹 TOP 10</div>
+      <div class="rank-list" id="overRankList"></div>
+      <div id="shareText" style="margin-top:16px;"></div>
       <button id="restartBtn" class="btn">다시하기</button>
       <button id="shareBtn" class="btn ghost">결과 공유하기</button>
     </div>
@@ -506,6 +534,11 @@
     shareText: document.getElementById("shareText"),
     startPanel: document.getElementById("startPanel"),
     overPanel:  document.getElementById("gameOverPanel"),
+    startName: document.getElementById("startName"),
+    startRankList: document.getElementById("startRankList"),
+    overRankList: document.getElementById("overRankList"),
+    rankMsg: document.getElementById("rankMsg"),
+    rankReset: document.getElementById("rankReset"),
     buffBar: document.getElementById("buffBar"),
     toast: document.getElementById("toast"),
   };
@@ -528,6 +561,54 @@
   const particles = [];
 
   ui.best.textContent = state.best;
+
+  /* ------------------- 닉네임 / 로컬 랭킹 (TOP 10) ------------------- */
+  const RANK_KEY = "avoidGameRanks";
+  let nickname = (localStorage.getItem("avoidGameName") || "나").slice(0, 8);
+  ui.startName.value = nickname;
+  ui.startName.addEventListener("input", () => {
+    nickname = ui.startName.value.trim().slice(0, 8) || "나";
+    localStorage.setItem("avoidGameName", nickname);
+  });
+
+  function loadRanks() {
+    try { return JSON.parse(localStorage.getItem(RANK_KEY) || "[]"); }
+    catch (_) { return []; }
+  }
+  function saveRanks(r) { localStorage.setItem(RANK_KEY, JSON.stringify(r.slice(0, 10))); }
+  // 점수 등록 후 { ranks(상위10), entry(방금 기록), rank(1-based) } 반환
+  function addRankEntry(name, score, level) {
+    const ranks = loadRanks();
+    const entry = { name: name, score: score, level: level };
+    ranks.push(entry);
+    ranks.sort((a, b) => b.score - a.score);
+    const rank = ranks.indexOf(entry) + 1;
+    saveRanks(ranks);
+    return { ranks: ranks.slice(0, 10), entry: entry, rank: rank };
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function renderRanking(container, ranks, highlight) {
+    if (!ranks.length) { container.innerHTML = '<div class="rank-empty">아직 기록이 없어요. 1등에 도전!</div>'; return; }
+    const medal = ["🥇", "🥈", "🥉"];
+    container.innerHTML = ranks.map((r, i) => {
+      const pos = medal[i] || (i + 1);
+      const hl = (r === highlight) ? " rank-new" : "";
+      return `<div class="rank-row${hl}"><span class="rank-pos">${pos}</span>` +
+             `<span class="rank-name">${escapeHtml(r.name)}</span>` +
+             `<span class="rank-score">${r.score}</span></div>`;
+    }).join("");
+  }
+  renderRanking(ui.startRankList, loadRanks(), null);   // 시작 화면 랭킹
+
+  ui.rankReset.addEventListener("click", () => {
+    if (confirm("랭킹 기록을 모두 지울까요?")) {
+      localStorage.removeItem(RANK_KEY);
+      renderRanking(ui.startRankList, [], null);
+    }
+  });
 
   /* ------------------- 캔버스 / 뷰포트 ------------------- */
   function setVh() {
@@ -591,6 +672,14 @@
     ui.final.textContent = finalScore;
     ui.finalLevel.textContent = state.level;
     ui.shareText.textContent = buildShareText(finalScore, state.level);
+
+    // 랭킹 등록 + 표시
+    const res = addRankEntry(nickname, finalScore, state.level);
+    if (res.rank <= 10) ui.rankMsg.textContent = `🎉 ${res.rank}위 등극!`;
+    else ui.rankMsg.textContent = `아쉽게 ${res.rank}위 (TOP 10 실패)`;
+    renderRanking(ui.overRankList, res.ranks, res.entry);
+    renderRanking(ui.startRankList, res.ranks, null);  // 시작 화면도 갱신
+
     ui.overPanel.classList.remove("hidden");
   }
 
