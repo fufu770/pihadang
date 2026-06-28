@@ -289,9 +289,8 @@
     obstacle: {
       minSize: 18, maxSize: 32,   // 더 작게 (모바일)
       baseSpeed: 180,             // 처음엔 천천히
-      baseSpawn: 1.05,            // 처음엔 드문드문(적게)
+      baseSpawn: 1.0,             // 처음엔 드문드문(적게)
       wobbleAmp: 22,
-      spawnBurstChance: 0.3,      // 한 번에 2개 (레벨 5+ 부터만)
     },
 
     // 10초마다 레벨 +1 → 알림 + 난이도 상승 (처음 쉽고 갈수록 어렵게)
@@ -300,8 +299,8 @@
       maxLevel: 20,               // 최고 레벨
       speedStep: 0.12,            // 레벨당 낙하속도 배율 +12%
       maxSpeedMul: 2.8,
-      spawnStep: 0.042,           // 레벨당 스폰 간격 감소(초) → 수량 증가
-      minSpawn: 0.26,             // 후반 최대 밀도
+      spawnStep: 0.035,           // 레벨당 스폰 간격 감소(초)
+      minSpawn: 0.4,              // 한 번에 여러 개 떨어지므로 간격은 적당히
     },
 
     item: {
@@ -1099,9 +1098,11 @@
     // 장애물 스폰 (가끔 한 번에 2개)
     state.spawnTimer -= dt;
     if (state.spawnTimer <= 0) {
-      spawnObstacle();
-      // 한 번에 2개는 레벨 5부터만 (초반은 드문드문)
-      if (state.level >= 5 && Math.random() < CONFIG.obstacle.spawnBurstChance) spawnObstacle();
+      // 레벨이 오를수록 '한 번에 떨어지는 개수'가 늘어남 → 수량 증가 체감
+      const lvl = state.level;
+      let count = Math.min(3, 1 + Math.floor((lvl - 1) / 4));  // Lv1~4:1, 5~8:2, 9~12:3
+      if (lvl >= 10 && Math.random() < 0.4) count += 1;        // 고레벨에선 가끔 폭증(최대 4)
+      for (let i = 0; i < count; i++) spawnObstacle();
       state.spawnTimer = currentSpawnInterval();
     }
 
