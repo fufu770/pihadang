@@ -391,14 +391,15 @@
   /* ------------------- ⑤ 효과음 모듈 -------------------
      WebAudio로 간단한 합성음을 냅니다. 실제 음원 파일로 바꾸려면
      Sound.play() 내부만 교체(예: new Audio(SOUND_DEFS[name].src).play()). */
+  // 모두 부드러운 사인/삼각파 + 살짝 음 올라가는 귀여운 '뿅' 느낌 (bend>1 상승, <1 하강)
   const SOUND_DEFS = {
-    item:   { freq: 880, type: "sine",     dur: 0.14, gain: 0.18 },
-    shield: { freq: 520, type: "triangle", dur: 0.22, gain: 0.2  },
-    star:   { freq: 1040,type: "square",   dur: 0.16, gain: 0.14 },
-    clock:  { freq: 360, type: "sine",     dur: 0.25, gain: 0.18 },
-    hit:    { freq: 150, type: "sawtooth", dur: 0.25, gain: 0.25 },
-    levelup:{ freq: 660, type: "triangle", dur: 0.3,  gain: 0.2  },
-    over:   { freq: 110, type: "sawtooth", dur: 0.5,  gain: 0.25 },
+    item:   { freq: 1046, type: "sine",     dur: 0.13, gain: 0.15, bend: 1.5 },
+    shield: { freq: 660,  type: "sine",     dur: 0.20, gain: 0.15, bend: 1.5 },
+    star:   { freq: 1318, type: "sine",     dur: 0.14, gain: 0.13, bend: 1.5 },
+    clock:  { freq: 523,  type: "sine",     dur: 0.22, gain: 0.15, bend: 0.85 },
+    hit:    { freq: 300,  type: "triangle", dur: 0.22, gain: 0.18, bend: 0.5 },
+    levelup:{ freq: 784,  type: "triangle", dur: 0.28, gain: 0.16, bend: 1.6 },
+    over:   { freq: 330,  type: "triangle", dur: 0.45, gain: 0.18, bend: 0.5 },
   };
   const Sound = {
     enabled: true,
@@ -415,12 +416,13 @@
       const osc = this.ctx.createOscillator();
       const g = this.ctx.createGain();
       osc.type = def.type; osc.frequency.setValueAtTime(def.freq, t);
-      // 살짝 음정 떨어뜨려 부드럽게
-      osc.frequency.exponentialRampToValueAtTime(def.freq * 0.7, t + def.dur);
-      g.gain.setValueAtTime(def.gain, t);
+      osc.frequency.exponentialRampToValueAtTime(def.freq * (def.bend || 0.7), t + def.dur);
+      // 부드러운 어택(클릭음 제거) → 덜 기계적으로
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(def.gain, t + 0.025);
       g.gain.exponentialRampToValueAtTime(0.0001, t + def.dur);
       osc.connect(g).connect(this.ctx.destination);
-      osc.start(t); osc.stop(t + def.dur);
+      osc.start(t); osc.stop(t + def.dur + 0.02);
     },
     toggle() { this.enabled = !this.enabled; return this.enabled; },
   };
@@ -432,16 +434,19 @@
     voice: null,
     pick() {
       if (!window.speechSynthesis) return;
-      const vs = window.speechSynthesis.getVoices();
-      this.voice = vs.find((v) => /ko/i.test(v.lang)) || null;
+      const vs = window.speechSynthesis.getVoices().filter((v) => /ko/i.test(v.lang));
+      // 더 자연스러운(덜 기계적인) 음성 우선: 구글/뉴럴/내추럴/여성 음성
+      this.voice = vs.find((v) => /google/i.test(v.name))
+                || vs.find((v) => /(neural|natural|yuna|heami|sora|female|여)/i.test(v.name))
+                || vs[0] || null;
     },
     say(text, pitch, rate) {
       if (!Sound.enabled || !window.speechSynthesis) return;
       try {
         const u = new SpeechSynthesisUtterance(text);
         u.lang = "ko-KR";
-        u.pitch = (pitch == null) ? 1.5 : pitch;
-        u.rate = (rate == null) ? 1.15 : rate;
+        u.pitch = (pitch == null) ? 2.0 : pitch;   // 최대한 높여 아기처럼
+        u.rate = (rate == null) ? 0.95 : rate;
         if (this.voice) u.voice = this.voice;
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
@@ -562,8 +567,8 @@
     hat(time, intensity) {
       const a = this.ctxRef;
       const osc = a.createOscillator(), g = a.createGain();
-      osc.type = "square"; osc.frequency.value = 8200;
-      g.gain.setValueAtTime(Math.min(0.12, 0.05 * intensity), time);
+      osc.type = "triangle"; osc.frequency.value = 6000;
+      g.gain.setValueAtTime(Math.min(0.06, 0.03 * intensity), time);
       g.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
       osc.connect(g).connect(this.master);
       osc.start(time); osc.stop(time + 0.04);
@@ -1098,7 +1103,7 @@
     Sound.play("hit");
     if (navigator.vibrate) navigator.vibrate([60, 40, 90]);
     // 사망: 아파하는 표정을 잠깐 보여준 뒤 게임오버 + "살찐당!"
-    if (state.life <= 0) { state.dying = true; state.dyingTimer = 0.9; Speak.say("살찐당", 1.2, 1.0); }
+    if (state.life <= 0) { state.dying = true; state.dyingTimer = 0.9; Speak.say("살찐당", 1.9, 0.95); }
   }
 
   function checkHit(ox, oy, or) {
@@ -1115,7 +1120,7 @@
     const def = ITEMS[it.key];
     spawnParticles(it.x, it.y, def.color, 14);
     if (navigator.vibrate) navigator.vibrate(30);
-    Speak.say("영당", 1.7, 1.25);   // 먹을 때마다 "영당!"
+    Speak.say("영당", 2.0, 1.05);   // 먹을 때마다 "영당!" (높고 귀엽게)
     if (it.key === "shield") { state.shieldTime = def.duration; Sound.play("shield"); showToast("🛡️ 방패 ON!"); }
     else if (it.key === "star") { state.score += def.bonus; Sound.play("star"); showToast(`⭐ +${def.bonus}점!`); }
     else if (it.key === "clock") { state.slowTime = def.duration; Sound.play("clock"); showToast("⏰ 슬로우!"); }
