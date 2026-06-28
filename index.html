@@ -57,6 +57,21 @@
       font-size: 18px; z-index: 15; cursor: pointer;
     }
 
+    /* ===== 좌측 상단 범례 (무엇을 먹으면 무슨 효과) ===== */
+    #legend {
+      position: absolute;
+      top: calc(env(safe-area-inset-top) + 84px); left: 18px;
+      z-index: 11; pointer-events: none;
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .legend-row {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 12px; font-weight: 800; color: #5b4a3d;
+      background: rgba(255,252,246,0.72); border-radius: 999px;
+      padding: 3px 10px 3px 4px;
+    }
+    .legend-cube { width: 15px; height: 15px; border-radius: 5px; box-shadow: inset 0 0 0 1.5px rgba(61,48,39,0.18); }
+
     /* ===== 효과 배지 (방패/시계 남은시간) ===== */
     #buffBar {
       position: absolute;
@@ -180,15 +195,25 @@
     <button id="soundBtn">🔊</button>
     <div id="buffBar"></div>
 
+    <!-- 좌측 상단: 자일로큐브 색깔별 효과 안내 -->
+    <div id="legend">
+      <div class="legend-row"><span class="legend-cube" style="background:#f4d96b"></span>점수 +</div>
+      <div class="legend-row"><span class="legend-cube" style="background:#8fc7e8"></span>느려짐</div>
+      <div class="legend-row"><span class="legend-cube" style="background:#9ad6a6"></span>방패</div>
+    </div>
+
     <!-- 시작 패널 -->
     <div id="startPanel" class="center-panel">
       <h1>당피하기</h1>
-      <p>🍩 떨어지는 설탕 과자(도넛·콜라·과자·초콜릿)는 피하고,<br />무설탕 캔디 <b>자일로큐브</b>를 드세요!</p>
+      <p>안녕! 나는 <b>영당이</b>당 🍬<br />
+         하늘에서 쏟아지는 도넛·콜라·과자·초콜릿 같은 <b>설탕 과자</b>를 요리조리 피해야 한당!<br />
+         딱 한 번만 맞아도 쓰러진당 💥<br />
+         대신 둥근 <b>자일로큐브</b>를 먹으면 점수도 오르고, 느려지거나 방패도 생긴당 ✨</p>
       <div class="skin-label">캐릭터 선택</div>
       <div class="skin-row" id="skinRow"></div>
       <input id="startName" class="name-input" maxlength="8" placeholder="닉네임 (최대 8자)" />
       <button id="startBtn" class="btn">시작하기</button>
-      <div class="small-text">🟦 자일로큐브를 먹으면 점수 · 슬로우 · 보호!</div>
+      <div class="small-text">손가락(또는 ← →)으로 영당이를 움직인당!</div>
       <div class="rank-title">🏆 랭킹 TOP 10</div>
       <div class="rank-list" id="startRankList"></div>
       <div class="rank-reset" id="rankReset">🔄 랭킹 새로고침</div>
@@ -260,7 +285,7 @@
     },
 
     item: {
-      spawnMin: 4.5, spawnMax: 8,  // 아이템 스폰 간격(초)
+      spawnMin: 2.2, spawnMax: 4,  // 보너스(자일로큐브) 스폰 간격(초) — 더 자주
       size: 30,
       fallSpeed: 150,
     },
