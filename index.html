@@ -470,7 +470,7 @@
 
   // 첨부 영상에서 추출한 맛 이름 음성(망고/키위/블루소다/스트로베리/레몬/자두)
   // 아이템 먹을 때마다 무작위로 1개 재생
-  const FLAVOR_VOICES = ["voice1.mp3", "voice2.mp3", "voice3.mp3", "voice4.mp3", "voice5.mp3", "voice6.mp3", "voice7.mp3", "voice8.mp3"]
+  const FLAVOR_VOICES = ["voice1.mp3", "voice2.mp3", "voice3.mp3", "voice4.mp3", "voice5.mp3", "voice6.mp3"]
     .map((s) => { const a = new Audio(s); a.preload = "auto"; return a; });
   let flavorCur = null;     // 동시에 한 단어만 재생 (겹침 방지)
   let flavorBag = [];       // 셔플 가방: 7개 다 나온 뒤 다시 섞임 → 연속 중복 방지
