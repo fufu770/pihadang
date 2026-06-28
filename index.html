@@ -278,6 +278,7 @@
     player: {
       followEase: 7,
       keyboardSpeed: 620,         // 키보드(←→/AD) 이동 속도 px/초
+      touchSensitivity: 1.0,      // 모바일: 손가락이 움직인 만큼만(1.0=1:1). 낮출수록 둔감
       margin: 28,
       bottomGap: 120,
       hitRadius: 22,
@@ -800,8 +801,21 @@
     if (gameState !== "playing") return;
     player.targetX = clamp(clientX, CONFIG.player.margin, W - CONFIG.player.margin);
   }
-  canvas.addEventListener("touchstart", (e) => { e.preventDefault(); pointerMove(e.touches[0].clientX); }, { passive: false });
-  canvas.addEventListener("touchmove",  (e) => { e.preventDefault(); pointerMove(e.touches[0].clientX); }, { passive: false });
+  // 모바일: 상대 드래그 (손가락이 움직인 만큼만 영당이 이동 → 순간이동/과민 방지)
+  let touchStartX = 0, touchBaseTarget = 0;
+  canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (gameState !== "playing") return;
+    touchStartX = e.touches[0].clientX;
+    touchBaseTarget = player.targetX;
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (gameState !== "playing") return;
+    const dx = (e.touches[0].clientX - touchStartX) * CONFIG.player.touchSensitivity;
+    player.targetX = clamp(touchBaseTarget + dx, CONFIG.player.margin, W - CONFIG.player.margin);
+  }, { passive: false });
+  // PC 마우스: 절대 위치(드래그) 그대로
   canvas.addEventListener("mousemove",  (e) => pointerMove(e.clientX));
   document.addEventListener("visibilitychange", () => { if (!document.hidden) lastTime = performance.now(); });
 
