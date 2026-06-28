@@ -234,6 +234,7 @@
 
     player: {
       followEase: 7,
+      keyboardSpeed: 620,         // 키보드(←→/AD) 이동 속도 px/초
       margin: 28,
       bottomGap: 120,
       hitRadius: 22,
@@ -686,6 +687,22 @@
   canvas.addEventListener("mousemove",  (e) => pointerMove(e.clientX));
   document.addEventListener("visibilitychange", () => { if (!document.hidden) lastTime = performance.now(); });
 
+  // 키보드: ← → 또는 A D 로 좌우 이동, Enter/Space 로 시작·다시하기
+  const keys = { left: false, right: false };
+  window.addEventListener("keydown", (e) => {
+    const k = e.key;
+    if (k === "ArrowLeft" || k === "a" || k === "A") { keys.left = true; e.preventDefault(); }
+    else if (k === "ArrowRight" || k === "d" || k === "D") { keys.right = true; e.preventDefault(); }
+    else if (k === "Enter" || k === " ") {
+      if (gameState !== "playing") { startGame(); e.preventDefault(); }
+    }
+  });
+  window.addEventListener("keyup", (e) => {
+    const k = e.key;
+    if (k === "ArrowLeft" || k === "a" || k === "A") keys.left = false;
+    else if (k === "ArrowRight" || k === "d" || k === "D") keys.right = false;
+  });
+
   /* ------------------- 게임 흐름 ------------------- */
   function resetGame() {
     state.elapsed = 0; state.score = 0; state.life = CONFIG.startLife; state.level = 1;
@@ -871,7 +888,14 @@
     if (state.shieldTime > 0) state.shieldTime = Math.max(0, state.shieldTime - dt);
     if (state.slowTime  > 0) state.slowTime  = Math.max(0, state.slowTime  - dt);
 
-    // 캐릭터 이동
+    // 키보드 입력으로 목표 위치 이동
+    if (keys.left || keys.right) {
+      const step = CONFIG.player.keyboardSpeed * dt;
+      player.targetX = clamp(player.targetX + (keys.right - keys.left) * step,
+                             CONFIG.player.margin, W - CONFIG.player.margin);
+    }
+
+    // 캐릭터 이동 (목표 위치로 부드럽게)
     const k = 1 - Math.exp(-CONFIG.player.followEase * dt);
     player.x += (player.targetX - player.x) * k;
     if (player.invincible > 0) player.invincible -= dt;
