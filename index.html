@@ -961,16 +961,21 @@
     ui.rankMsg.textContent = "🌍 온라인 랭킹 등록 중...";
     ui.overRankList.innerHTML = '<div class="rank-empty">불러오는 중...</div>';
     (async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       try {
         await lbSubmit(nickname, state.best, state.level);
-        const list = await lbTop(10);
+        await sleep(700);                         // 등록 반영 대기
+        let list = await lbTop(10);
+        // 방금 내 점수가 아직 안 보이면 한 번 더 읽기
+        let mine = list.find((e) => e.name === nickname);
+        if (!mine || mine.score < state.best) { await sleep(1000); list = await lbTop(10); }
         saveCache(list);
         const myIdx = list.findIndex((e) => e.name === nickname);
         ui.rankMsg.textContent = (myIdx >= 0) ? `🌍 전체 ${myIdx + 1}위!` : "기록 등록 완료 🌍";
         renderRanking(ui.overRankList, list, (r) => r.name === nickname);
         renderRanking(ui.startRankList, list, null);
       } catch (err) {
-        ui.rankMsg.textContent = "⚠️ 온라인 연결 실패 — 저장된 랭킹 표시";
+        ui.rankMsg.textContent = "⚠️ 온라인 연결 실패 — 잠시 후 다시 시도해요";
         renderRanking(ui.overRankList, loadCache(), null);
       }
     })();
