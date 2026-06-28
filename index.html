@@ -771,16 +771,35 @@
     ];
     return lines.join("\n");
   }
-  document.getElementById("shareBtn").addEventListener("click", async () => {
-    const text = ui.shareText.textContent;
+  // 모바일 여부 판별 (폰=공유창, PC=링크 복사)
+  function isMobile() {
+    if (navigator.userAgentData && typeof navigator.userAgentData.mobile === "boolean") {
+      return navigator.userAgentData.mobile;
+    }
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+  }
+  async function copyToClipboard(str) {
     try {
-      if (navigator.share) {
-        await navigator.share({ title: "피하당!", text, url: location.href });
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(text + "\n" + location.href);
-        showToast("📋 공유 문구 복사 완료!");
-      }
-    } catch (_) { /* 사용자가 취소 */ }
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(str); return true; }
+    } catch (_) {}
+    // 구형 폴백
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = str; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand("copy"); document.body.removeChild(ta); return ok;
+    } catch (_) { return false; }
+  }
+  document.getElementById("shareBtn").addEventListener("click", async () => {
+    const text = ui.shareText.textContent + "\n" + location.href;
+    // 폰: OS 공유창(카톡 등). PC: 그냥 링크 복사 (MS스토어 설치 안내 방지)
+    if (isMobile() && navigator.share) {
+      try { await navigator.share({ title: "피하당!", text: ui.shareText.textContent, url: location.href }); }
+      catch (_) { /* 사용자가 취소 */ }
+    } else {
+      const ok = await copyToClipboard(text);
+      showToast(ok ? "📋 링크 복사 완료! 카톡에 붙여넣기" : "복사 실패 — 주소창 링크를 복사하세요");
+    }
   });
 
   /* ------------------- 효과음 토글 ------------------- */
