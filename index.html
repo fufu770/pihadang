@@ -777,7 +777,7 @@
       (u) => "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(u),
     ],
   };
-  const RANK_KEY = "avoidGameRanks";   // 마지막 성공 랭킹 로컬 캐시
+  const RANK_KEY = "avoidGameRanks_v2";   // 마지막 성공 랭킹 로컬 캐시 (v2: 옛 캐시 무시→랭킹 초기화)
 
   let nickname = (localStorage.getItem("avoidGameName") || "나").slice(0, 8);
   ui.startName.value = nickname;
