@@ -187,6 +187,7 @@
 <body>
   <div id="gameWrap">
     <canvas id="game"></canvas>
+    <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
 
     <div class="top-ui">
       <div class="score-box">
@@ -593,6 +594,31 @@
     },
   };
 
+  /* ------------------- ⑤-3 배경음악(BGM) — mp3 파일 재생 -------------------
+     자일로큐브 브링커.mp3 를 반복 재생. 🔊 토글로 on/off. */
+  const Bgm = {
+    el: null,
+    enabled: true,
+    init() {
+      if (this.el) return;
+      this.el = document.getElementById("bgm");
+      if (this.el) { this.el.loop = true; this.el.volume = 0.55; }
+    },
+    start() {
+      this.init();
+      if (!this.el || !this.enabled) return;
+      try { this.el.currentTime = 0; const p = this.el.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {}
+    },
+    stop() { if (this.el) { try { this.el.pause(); } catch (_) {} } },
+    setEnabled(on) {
+      this.enabled = on;
+      this.init();
+      if (!this.el) return;
+      if (on) { if (gameState === "playing") this.el.play().catch(() => {}); }
+      else { this.el.pause(); }
+    },
+  };
+
   /* ------------------- 오디오 unlock (자동재생 정책 대응) -------------------
      모바일/데스크톱 브라우저는 사용자 제스처 없이는 소리를 막습니다.
      첫 터치/클릭에서 AudioContext 를 깨워 둡니다. */
@@ -800,7 +826,7 @@
   function startGame() {
     Sound.init();
     unlockAudio();
-    Music.start();
+    Bgm.start();
     resetGame();
     gameState = "playing";
     ui.startPanel.classList.add("hidden");
@@ -810,7 +836,7 @@
   }
   function gameOver() {
     gameState = "over";
-    Music.stop();
+    Bgm.stop();
     Sound.play("over");
     const finalScore = Math.floor(state.score);
     if (finalScore > state.best) {
@@ -890,7 +916,7 @@
   soundBtn.addEventListener("click", () => {
     Sound.init();
     const on = Sound.toggle();
-    Music.setEnabled(on);
+    Bgm.setEnabled(on);
     soundBtn.textContent = on ? "🔊" : "🔇";
   });
 
