@@ -252,7 +252,7 @@
          <b>⏱️ 시간이 계속 줄어든당</b> — 0이 되면 쓰러진당 😵<br />
          <b>자일로큐브 영당이</b>를 먹으면 <b>시간이 채워진당</b>! 점수·슬로우·방패는 덤 ✨<br />
          <b>🌈 무지개 오리지널</b>을 먹으면 시간이 왕창 차오른당 (꼭 먹어랑!)<br />
-         도넛·콜라·과자·초콜릿 같은 <b>설탕 과자</b>에 맞으면 시간이 확 깎인당 🍩</p>
+         도넛·콜라·과자·초콜릿 같은 <b>설탕 과자</b>에 맞으면 <b>바로 쓰러진당</b> 💥 (방패 쓰면 안전!)</p>
       <div class="skin-label">캐릭터 선택</div>
       <div class="skin-row" id="skinRow"></div>
       <input id="startName" class="name-input" maxlength="8" placeholder="닉네임 (최대 8자)" />
@@ -1263,17 +1263,11 @@
     Speak.say("살찐당", 1.9, 0.95);
   }
 
-  // 과자에 맞음 → 시간 깎임 (즉사 아님)
+  // 과자/장애물에 맞음 → 즉사 (단, 방패 중이면 무사)
   function hitPlayer() {
     if (isInvincible() || state.dying) return;
-    player.invincible = CONFIG.invincibleTime;       // 짧은 무적(연속 피격 방지)
-    player.hurt = 0.6;
-    state.timeLeft -= CONFIG.timeAttack.hitPenalty;
-    spawnParticles(player.x, player.y - 22, "#f3a0a4", 14);
     Sound.play("hit");
-    showToast(`🍩 -${CONFIG.timeAttack.hitPenalty}초!`);
-    if (navigator.vibrate) navigator.vibrate(70);
-    if (state.timeLeft <= 0) { state.timeLeft = 0; dieNow("시간이 다 됐다…"); }
+    dieNow("🍩 과자에 맞았다!");
   }
 
   function checkHit(ox, oy, or) {
