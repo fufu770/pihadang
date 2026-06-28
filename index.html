@@ -86,6 +86,7 @@
       padding: 2px 12px 2px 3px;
     }
     .legend-cv { width: 22px; height: 22px; }
+    .legend-row.must { font-weight: 800; color: #d23f3f; background: rgba(255,240,200,0.85); }
     .legend-eat { margin-top: 3px; font-size: 13px; color: #e0556f; padding-left: 4px; }
 
     /* ===== 효과 배지 (방패/시계 남은시간) ===== */
@@ -217,6 +218,7 @@
       <div class="legend-row"><canvas class="legend-cv" id="lgStar" width="44" height="44"></canvas>점수 +</div>
       <div class="legend-row"><canvas class="legend-cv" id="lgClock" width="44" height="44"></canvas>느려짐</div>
       <div class="legend-row"><canvas class="legend-cv" id="lgShield" width="44" height="44"></canvas>방패</div>
+      <div class="legend-row must"><canvas class="legend-cv" id="lgMust" width="44" height="44"></canvas>🌈 꼭 먹어!</div>
       <div class="legend-eat">영당이를 먹어랑!</div>
     </div>
 
@@ -226,7 +228,8 @@
       <p>안녕! 나는 <b>영당이</b>당 🍬<br />
          하늘에서 쏟아지는 도넛·콜라·과자·초콜릿 같은 <b>설탕 과자</b>를 요리조리 피해야 한당!<br />
          딱 한 번만 맞아도 쓰러진당 💥<br />
-         대신 큐브모양의 <b>자일로큐브 영당이</b>를 먹으면 점수도 오르고, 느려지거나 방패도 생긴당 ✨</p>
+         대신 큐브모양의 <b>자일로큐브 영당이</b>를 먹으면 점수도 오르고, 느려지거나 방패도 생긴당 ✨<br />
+         그리고 <b>🌈 무지개 오리지널</b>이 나타나면 <b>꼭! 먹어야 한당</b> — 놓치면 쓰러진당 😵</p>
       <div class="skin-label">캐릭터 선택</div>
       <div class="skin-row" id="skinRow"></div>
       <input id="startName" class="name-input" maxlength="8" placeholder="닉네임 (최대 8자)" />
@@ -307,6 +310,14 @@
       spawnMin: 2.4, spawnMax: 4.5, // 보너스(자일로큐브) 스폰 간격(초)
       size: 26,
       fallSpeed: 145,
+    },
+
+    // 🌈 오리지널(무지개) 영당이 — 반드시 먹어야 함! 놓치면 사망
+    must: {
+      spawnMin: 9, spawnMax: 14,    // 등장 간격(초)
+      size: 40,                     // 크게 (눈에 잘 띄게)
+      fallSpeed: 120,               // 느리게 (잡을 수 있게)
+      bonus: 200,                   // 먹으면 점수 보너스
     },
   };
 
@@ -867,6 +878,7 @@
     state.elapsed = 0; state.score = 0; state.life = CONFIG.startLife; state.level = 1;
     state.spawnTimer = 0; state.shieldTime = 0; state.slowTime = 0;
     state.dying = false; state.dyingTimer = 0;
+    state.mustTimer = random(CONFIG.must.spawnMin, CONFIG.must.spawnMax);
     state.itemTimer = random(CONFIG.item.spawnMin, CONFIG.item.spawnMax);
     player.x = W / 2; player.targetX = W / 2; player.y = H - CONFIG.player.bottomGap; player.invincible = 0; player.facing = 1; player.hurt = 0;
     obstacles.length = 0; items.length = 0; particles.length = 0;
@@ -1073,6 +1085,16 @@
     const s = CONFIG.item.size;
     items.push({ x: random(s, W - s), y: -s, size: s, key, bob: random(0, Math.PI*2) });
   }
+  // 🌈 반드시 먹어야 하는 오리지널 영당이
+  function spawnMustItem() {
+    // 이미 화면에 오리지널이 있으면 중복 생성 안 함
+    if (items.some((it) => it.must)) return;
+    const s = CONFIG.must.size;
+    items.push({ x: random(s, W - s), y: -s, size: s, key: "rainbow", must: true, bob: random(0, Math.PI * 2) });
+    Sound.play("levelup");
+    showToast("🌈 오리지널 등장! 꼭 먹어랑!");
+    if (navigator.vibrate) navigator.vibrate(30);
+  }
 
   /* ------------------- ⑨ 업데이트 ------------------- */
   function update(dt) {
@@ -1137,6 +1159,10 @@
     state.itemTimer -= dt;
     if (state.itemTimer <= 0) { spawnItem(); state.itemTimer = random(CONFIG.item.spawnMin, CONFIG.item.spawnMax); }
 
+    // 🌈 오리지널(필수) 영당이 스폰
+    state.mustTimer -= dt;
+    if (state.mustTimer <= 0) { spawnMustItem(); state.mustTimer = random(CONFIG.must.spawnMin, CONFIG.must.spawnMax); }
+
     // 장애물 처리 (시계 효과로 속도 감소)
     const slowMul = state.slowTime > 0 ? ITEMS.clock.slow : 1;
     const fall = currentFallSpeed() * slowMul;
@@ -1152,10 +1178,15 @@
     // 아이템 처리
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
-      it.y += CONFIG.item.fallSpeed * dt;
+      it.y += (it.must ? CONFIG.must.fallSpeed : CONFIG.item.fallSpeed) * dt;
       it.bob += dt * 4;
       if (collideItem(it)) { collectItem(it); items.splice(i, 1); continue; }
-      if (it.y > H + 60) items.splice(i, 1);
+      if (it.y > H + 60) {
+        const wasMust = it.must;
+        items.splice(i, 1);
+        if (wasMust && !state.dying) { missedMust(); }   // 오리지널 놓치면 사망
+        continue;
+      }
     }
 
     // 파티클
@@ -1195,13 +1226,33 @@
   }
 
   function collectItem(it) {
+    if (navigator.vibrate) navigator.vibrate(30);
+    playFlavor();   // 먹을 때마다 맛 이름
+    if (it.must) {  // 🌈 오리지널: 큰 보너스
+      spawnParticles(it.x, it.y, "#ffd0e8", 24);
+      spawnParticles(it.x, it.y, "#a6e9ff", 12);
+      state.score += CONFIG.must.bonus;
+      Sound.play("star");
+      showToast(`🌈 오리지널 겟! +${CONFIG.must.bonus}점`);
+      return;
+    }
     const def = ITEMS[it.key];
     spawnParticles(it.x, it.y, def.color, 14);
-    if (navigator.vibrate) navigator.vibrate(30);
-    playFlavor();   // 먹을 때마다 맛 이름(망고/키위/블루소다/스트로베리/레몬/자두)
     if (it.key === "shield") { state.shieldTime = def.duration; Sound.play("shield"); showToast("🛡️ 방패 ON!"); }
     else if (it.key === "star") { state.score += def.bonus; Sound.play("star"); showToast(`⭐ +${def.bonus}점!`); }
     else if (it.key === "clock") { state.slowTime = def.duration; Sound.play("clock"); showToast("⏰ 슬로우!"); }
+  }
+
+  // 🌈 오리지널을 놓쳤다 → 사망
+  function missedMust() {
+    if (state.dying) return;
+    player.hurt = 1.0;
+    spawnParticles(player.x, player.y - 22, "#b0a0ff", 16);
+    Sound.play("hit");
+    if (navigator.vibrate) navigator.vibrate([60, 40, 90]);
+    showToast("🌈 오리지널을 놓쳤다…");
+    state.dying = true; state.dyingTimer = 0.9;
+    Speak.say("살찐당", 1.9, 0.95);
   }
 
   function spawnParticles(x, y, color, n) {
@@ -1376,7 +1427,13 @@
     }
 
     squirclePath(c, 0, 0, s, s, s * 0.3);
-    c.fillStyle = color; c.fill();
+    if (color === "rainbow") {
+      const g = c.createLinearGradient(-s / 2, -s / 2, s / 2, s / 2);
+      g.addColorStop(0, "#a6e9ff"); g.addColorStop(0.3, "#b9f2c8");
+      g.addColorStop(0.55, "#fff3a8"); g.addColorStop(0.8, "#ffc2dd"); g.addColorStop(1, "#d4b6ff");
+      c.fillStyle = g;
+    } else { c.fillStyle = color; }
+    c.fill();
     c.strokeStyle = "rgba(61,48,39,0.25)"; c.lineWidth = Math.max(1.5, s * 0.09); c.stroke();
     // 반짝 하이라이트
     c.fillStyle = "rgba(255,255,255,0.5)";
@@ -1391,17 +1448,27 @@
     c.restore();
   }
   function drawItem(it) {
-    const def = ITEMS[it.key];
     const yb = Math.sin(it.bob) * 4;
     ctx.save();
     ctx.translate(it.x, it.y + yb);
+    if (it.must) {
+      // 반짝이는 후광 (꼭 먹어야 함을 강조)
+      ctx.save();
+      ctx.globalAlpha = 0.35 + Math.sin(it.bob * 2) * 0.15;
+      const rg = ctx.createRadialGradient(0, 0, it.size * 0.3, 0, 0, it.size);
+      rg.addColorStop(0, "rgba(255,255,255,0.75)"); rg.addColorStop(1, "rgba(255,200,240,0)");
+      ctx.fillStyle = rg;
+      ctx.beginPath(); ctx.arc(0, 0, it.size, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     ctx.rotate(Math.sin(it.bob) * 0.12);
-    drawCandyCube(ctx, 0, 0, it.size, def.color, it.bob * 2.2);  // 떨어질 때 팔다리 흔들흔들
+    const col = it.must ? "rainbow" : ITEMS[it.key].color;
+    drawCandyCube(ctx, 0, 0, it.size, col, it.bob * 2.2);  // 떨어질 때 팔다리 흔들흔들
     ctx.restore();
   }
   // 좌측 상단 범례 큐브 렌더 (팔다리 포함 — 떨어지는 아이템과 똑같이)
   function drawLegendCubes() {
-    [["lgStar", ITEMS.star.color], ["lgClock", ITEMS.clock.color], ["lgShield", ITEMS.shield.color]].forEach(([id, col]) => {
+    [["lgStar", ITEMS.star.color], ["lgClock", ITEMS.clock.color], ["lgShield", ITEMS.shield.color], ["lgMust", "rainbow"]].forEach(([id, col]) => {
       const cv = document.getElementById(id); if (!cv) return;
       const c = cv.getContext("2d"); c.clearRect(0, 0, cv.width, cv.height);
       drawCandyCube(c, 22, 24, 22, col, 0.7);   // 고정 포즈(팔다리 보이게)
