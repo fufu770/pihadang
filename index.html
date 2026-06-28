@@ -261,6 +261,7 @@
       <div class="rank-title">🏆 랭킹 TOP 10</div>
       <div class="rank-list" id="startRankList"></div>
       <div class="rank-reset" id="rankReset">🔄 랭킹 새로고침</div>
+      <div class="rank-reset" id="myReset">🗑️ 내 기록 초기화</div>
     </div>
 
     <!-- 게임오버 패널 -->
@@ -733,6 +734,7 @@
     overRankList: document.getElementById("overRankList"),
     rankMsg: document.getElementById("rankMsg"),
     rankReset: document.getElementById("rankReset"),
+    myReset: document.getElementById("myReset"),
     buffBar: document.getElementById("buffBar"),
     toast: document.getElementById("toast"),
   };
@@ -850,6 +852,18 @@
 
   // "새로고침" 버튼 (예전 '초기화' 자리 재활용)
   ui.rankReset.addEventListener("click", refreshStartBoard);
+
+  // 🗑️ 내 기록 초기화 (이 기기의 최고점수·로컬 캐시만 삭제, 온라인 랭킹은 그대로)
+  ui.myReset.addEventListener("click", () => {
+    if (!confirm("이 기기의 내 최고 점수 기록을 초기화할까요?")) return;
+    localStorage.removeItem("avoidGameBestScore");
+    localStorage.removeItem(RANK_KEY);
+    state.best = 0;
+    ui.best.textContent = "0";
+    renderRanking(ui.startRankList, [], null);
+    refreshStartBoard();           // 온라인 랭킹은 다시 불러오기
+    showToast("🗑️ 내 기록 초기화 완료!");
+  });
 
   /* ------------------- 캔버스 / 뷰포트 ------------------- */
   function setVh() {
