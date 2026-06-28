@@ -261,7 +261,7 @@
       <input id="startName" class="name-input" maxlength="8" placeholder="닉네임 (최대 8자)" />
       <button id="startBtn" class="btn">시작하기</button>
       <div class="small-text">손가락(또는 ← →)으로 영당이를 움직인당!</div>
-      <div class="rank-title">🏆 랭킹 TOP 10</div>
+      <div class="rank-title">🏆 내 기록 TOP 10</div>
       <div class="rank-list" id="startRankList"></div>
     </div>
 
@@ -270,7 +270,7 @@
       <h1>게임오버</h1>
       <p>최종 점수 <b id="finalScore">0</b>점 · Lv.<span id="finalLevel">1</span></p>
       <div id="rankMsg" class="rank-msg"></div>
-      <div class="rank-title">🏆 랭킹 TOP 10</div>
+      <div class="rank-title">🏆 내 기록 TOP 10</div>
       <div class="rank-list" id="overRankList"></div>
       <div id="shareText" style="margin-top:16px;"></div>
       <button id="restartBtn" class="btn">다시하기</button>
@@ -855,10 +855,19 @@
     }).join("");
   }
 
-  // 시작 화면: 캐시 먼저 보여주고 온라인으로 갱신
+  // 내 기록(이 기기) 랭킹 — 인터넷/계정 없이 로컬에만 저장
+  function addLocalScore(name, score, level) {
+    const list = loadCache();
+    const entry = { name: name, score: score, level: level };
+    list.push(entry);
+    list.sort((a, b) => b.score - a.score);
+    const rank = list.indexOf(entry) + 1;
+    const top = list.slice(0, 10);
+    saveCache(top);
+    return { list: top, entry: entry, rank: rank };
+  }
   function refreshStartBoard() {
     renderRanking(ui.startRankList, loadCache(), null);
-    lbTop(10).then((list) => { saveCache(list); renderRanking(ui.startRankList, list, null); }).catch(() => {});
   }
   refreshStartBoard();
 
@@ -957,28 +966,11 @@
     ui.finalLevel.textContent = state.level;
     ui.shareText.textContent = buildShareText(finalScore, state.level);
 
-    // 온라인 랭킹 등록 + 표시 (개인 최고기록을 등록 → 같은 닉네임은 최고점 유지)
-    ui.rankMsg.textContent = "🌍 온라인 랭킹 등록 중...";
-    ui.overRankList.innerHTML = '<div class="rank-empty">불러오는 중...</div>';
-    (async () => {
-      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-      try {
-        await lbSubmit(nickname, state.best, state.level);
-        await sleep(700);                         // 등록 반영 대기
-        let list = await lbTop(10);
-        // 방금 내 점수가 아직 안 보이면 한 번 더 읽기
-        let mine = list.find((e) => e.name === nickname);
-        if (!mine || mine.score < state.best) { await sleep(1000); list = await lbTop(10); }
-        saveCache(list);
-        const myIdx = list.findIndex((e) => e.name === nickname);
-        ui.rankMsg.textContent = (myIdx >= 0) ? `🌍 전체 ${myIdx + 1}위!` : "기록 등록 완료 🌍";
-        renderRanking(ui.overRankList, list, (r) => r.name === nickname);
-        renderRanking(ui.startRankList, list, null);
-      } catch (err) {
-        ui.rankMsg.textContent = "⚠️ 온라인 연결 실패 — 잠시 후 다시 시도해요";
-        renderRanking(ui.overRankList, loadCache(), null);
-      }
-    })();
+    // 내 기록(이 기기) 랭킹에 등록 + 표시
+    const res = addLocalScore(nickname, finalScore, state.level);
+    ui.rankMsg.textContent = (res.rank <= 10) ? `🏆 내 기록 ${res.rank}위!` : `이번 점수 ${finalScore}점`;
+    renderRanking(ui.overRankList, res.list, (r) => r === res.entry);
+    renderRanking(ui.startRankList, res.list, null);
 
     ui.overPanel.classList.remove("hidden");
   }
