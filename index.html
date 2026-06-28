@@ -472,12 +472,23 @@
   // 아이템 먹을 때마다 무작위로 1개 재생
   const FLAVOR_VOICES = ["voice1.mp3", "voice2.mp3", "voice3.mp3", "voice4.mp3", "voice5.mp3", "voice6.mp3", "voice7.mp3"]
     .map((s) => { const a = new Audio(s); a.preload = "auto"; return a; });
-  let flavorCur = null;   // 동시에 한 단어만 재생 (겹침 방지)
+  let flavorCur = null;     // 동시에 한 단어만 재생 (겹침 방지)
+  let flavorBag = [];       // 셔플 가방: 7개 다 나온 뒤 다시 섞임 → 연속 중복 방지
+  function nextFlavorIndex() {
+    if (flavorBag.length === 0) {
+      flavorBag = FLAVOR_VOICES.map((_, i) => i);
+      for (let i = flavorBag.length - 1; i > 0; i--) {
+        const j = (Math.random() * (i + 1)) | 0;
+        const t = flavorBag[i]; flavorBag[i] = flavorBag[j]; flavorBag[j] = t;
+      }
+    }
+    return flavorBag.pop();
+  }
   function playFlavor() {
     if (!Sound.enabled || !FLAVOR_VOICES.length) return;
     try {
       if (flavorCur && !flavorCur.paused) { flavorCur.pause(); flavorCur.currentTime = 0; }
-      const a = FLAVOR_VOICES[(Math.random() * FLAVOR_VOICES.length) | 0];
+      const a = FLAVOR_VOICES[nextFlavorIndex()];
       a.currentTime = 0; a.volume = 1.0;
       const p = a.play(); if (p && p.catch) p.catch(() => {});
       flavorCur = a;
