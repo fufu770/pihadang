@@ -132,6 +132,8 @@
       border-radius: 28px; padding: 26px 22px; text-align: center;
       box-shadow: 0 18px 45px rgba(86, 62, 40, 0.18);
       z-index: 20; max-height: 88vh; overflow-y: auto;
+      touch-action: pan-y;                /* 모바일에서 패널 안 세로 스크롤 허용 */
+      -webkit-overflow-scrolling: touch;
     }
     .center-panel h1 { margin: 0 0 8px; font-size: 32px; letter-spacing: -0.08em; color: #3d3027; }
     .center-panel p { margin: 0 0 16px; font-size: 15px; line-height: 1.55; color: #6c5a4b; word-break: keep-all; }
@@ -184,7 +186,8 @@
     .rank-score { font-weight: 900; }
     .rank-empty { font-size: 13px; color: #8b7868; padding: 10px; }
     .rank-msg { font-size: 17px; font-weight: 900; color: #e1577d; margin-bottom: 12px; }
-    .rank-reset { font-size: 12px; color: #b0a194; margin-top: 12px; cursor: pointer; text-decoration: underline; }
+    .rank-reset { font-size: 13px; color: #8b7868; margin-top: 8px; padding: 9px; cursor: pointer; text-decoration: underline; border-radius: 10px; }
+    .rank-reset:active { background: rgba(61,48,39,0.08); }
 
     .bottom-hint {
       position: absolute; left: 50%;
