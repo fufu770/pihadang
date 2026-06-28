@@ -197,7 +197,7 @@
 
   /* ------------------- ① CONFIG ------------------- */
   const CONFIG = {
-    startLife: 3,
+    startLife: 1,                 // 한 번 맞으면 즉사
     scorePerSec: 8,
     dodgeBonus: 1,
     invincibleTime: 1.2,          // 피격 후 깜빡이는 무적
@@ -214,18 +214,18 @@
 
     obstacle: {
       minSize: 24, maxSize: 46,
-      baseSpeed: 200,
-      baseSpawn: 0.8,
+      baseSpeed: 340,             // 시작부터 빠르게 떨어짐
+      baseSpawn: 0.45,            // 시작부터 촘촘하게 많이
       wobbleAmp: 28,
     },
 
     // 10초마다 레벨 +1 → 알림 + 난이도 상승
     difficulty: {
       levelInterval: 10,          // 초
-      speedStep: 0.16,            // 레벨당 낙하속도 배율 증가
-      maxSpeedMul: 2.6,
-      spawnStep: 0.055,           // 레벨당 스폰 간격 감소(초)
-      minSpawn: 0.3,
+      speedStep: 0.2,             // 레벨당 낙하속도 배율 증가
+      maxSpeedMul: 3.2,
+      spawnStep: 0.05,            // 레벨당 스폰 간격 감소(초)
+      minSpawn: 0.18,             // 최고 난이도에서 매우 빽빽
     },
 
     item: {
