@@ -72,6 +72,27 @@
       font-size: 18px; z-index: 15; cursor: pointer;
     }
 
+    /* ===== ⏱️ 시간 바 ===== */
+    #timeBarWrap {
+      position: absolute;
+      top: calc(env(safe-area-inset-top) + 64px); left: 50%; transform: translateX(-50%);
+      width: min(70vw, 320px); height: 20px;
+      background: rgba(61,48,39,0.15); border-radius: 999px; overflow: hidden;
+      z-index: 12; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+    }
+    #timeBarFill {
+      position: absolute; inset: 0; width: 100%;
+      background: linear-gradient(90deg, #7ed6a5, #ffd166);
+      border-radius: 999px; transform-origin: left center;
+      transition: background .2s;
+    }
+    #timeText {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: #3d3027; text-shadow: 0 1px 1px rgba(255,255,255,.4);
+    }
+    #timeBarWrap.low #timeBarFill { background: linear-gradient(90deg, #ff8a8a, #ff5a5a); animation: tpulse .5s infinite; }
+    @keyframes tpulse { 0%,100%{ opacity:1 } 50%{ opacity:.55 } }
+
     /* ===== 좌측 상단 범례 (무엇을 먹으면 무슨 효과) ===== */
     #legend {
       position: absolute;
@@ -201,14 +222,16 @@
     <div class="top-ui">
       <div class="score-box">
         점수 <span id="score">0</span><br />
-        최고 <span id="bestScore">0</span><br />
-        생명 <span id="life">3</span>
+        최고 <span id="bestScore">0</span>
       </div>
       <div class="title-box">
         <div class="game-title">당피하기</div>
         <div class="game-sub">Lv.<span id="level">1</span></div>
       </div>
     </div>
+
+    <!-- ⏱️ 시간 바 -->
+    <div id="timeBarWrap"><div id="timeBarFill"></div><span id="timeText">0.0</span></div>
 
     <button id="soundBtn">🔊</button>
     <div id="buffBar"></div>
@@ -226,10 +249,10 @@
     <div id="startPanel" class="center-panel">
       <h1>당피하기</h1>
       <p>안녕! 나는 <b>영당이</b>당 🍬<br />
-         하늘에서 쏟아지는 도넛·콜라·과자·초콜릿 같은 <b>설탕 과자</b>를 요리조리 피해야 한당!<br />
-         딱 한 번만 맞아도 쓰러진당 💥<br />
-         대신 큐브모양의 <b>자일로큐브 영당이</b>를 먹으면 점수도 오르고, 느려지거나 방패도 생긴당 ✨<br />
-         그리고 <b>🌈 무지개 오리지널</b>이 나타나면 <b>꼭! 먹어야 한당</b> — 놓치면 쓰러진당 😵</p>
+         <b>⏱️ 시간이 계속 줄어든당</b> — 0이 되면 쓰러진당 😵<br />
+         <b>자일로큐브 영당이</b>를 먹으면 <b>시간이 채워진당</b>! 점수·슬로우·방패는 덤 ✨<br />
+         <b>🌈 무지개 오리지널</b>을 먹으면 시간이 왕창 차오른당 (꼭 먹어랑!)<br />
+         도넛·콜라·과자·초콜릿 같은 <b>설탕 과자</b>에 맞으면 시간이 확 깎인당 🍩</p>
       <div class="skin-label">캐릭터 선택</div>
       <div class="skin-row" id="skinRow"></div>
       <input id="startName" class="name-input" maxlength="8" placeholder="닉네임 (최대 8자)" />
@@ -312,12 +335,24 @@
       fallSpeed: 145,
     },
 
-    // 🌈 오리지널(무지개) 영당이 — 반드시 먹어야 함! 놓치면 사망
+    // 🌈 오리지널(무지개) 영당이 — 먹으면 시간 대량 회복! 놓치면 시간 깎임
     must: {
       spawnMin: 9, spawnMax: 14,    // 등장 간격(초)
       size: 40,                     // 크게 (눈에 잘 띄게)
       fallSpeed: 120,               // 느리게 (잡을 수 있게)
       bonus: 200,                   // 먹으면 점수 보너스
+    },
+
+    // ⏱️ 시간 어택: 시간이 0이 되면 사망. 먹으면 회복, 맞으면 깎임.
+    timeAttack: {
+      startTime: 18,                // 시작 시간(초)
+      maxTime: 30,                  // 시간 바 최대치(상한)
+      drainBase: 1.0,              // 초당 자연 감소량(=실시간)
+      drainPerLevel: 0.04,         // 레벨당 감소 가속(갈수록 빡세게)
+      candyGain: 2.6,              // 일반 캔디: +초
+      rainbowGain: 6,             // 무지개: +초
+      hitPenalty: 4,              // 과자 맞으면: -초
+      missPenalty: 4,             // 무지개 놓치면: -초
     },
   };
 
@@ -685,8 +720,10 @@
   const ui = {
     score: document.getElementById("score"),
     best:  document.getElementById("bestScore"),
-    life:  document.getElementById("life"),
     level: document.getElementById("level"),
+    timeBarWrap: document.getElementById("timeBarWrap"),
+    timeBarFill: document.getElementById("timeBarFill"),
+    timeText: document.getElementById("timeText"),
     final: document.getElementById("finalScore"),
     finalLevel: document.getElementById("finalLevel"),
     shareText: document.getElementById("shareText"),
@@ -879,6 +916,7 @@
     state.spawnTimer = 0; state.shieldTime = 0; state.slowTime = 0;
     state.dying = false; state.dyingTimer = 0;
     state.mustTimer = random(CONFIG.must.spawnMin, CONFIG.must.spawnMax);
+    state.timeLeft = CONFIG.timeAttack.startTime;
     state.itemTimer = random(CONFIG.item.spawnMin, CONFIG.item.spawnMax);
     player.x = W / 2; player.targetX = W / 2; player.y = H - CONFIG.player.bottomGap; player.invincible = 0; player.facing = 1; player.hurt = 0;
     obstacles.length = 0; items.length = 0; particles.length = 0;
@@ -1036,8 +1074,13 @@
   function updateUI() {
     ui.score.textContent = Math.floor(state.score);
     ui.best.textContent = state.best;
-    ui.life.textContent = state.life;
     ui.level.textContent = state.level;
+    // ⏱️ 시간 바
+    const T = CONFIG.timeAttack;
+    const pct = Math.max(0, Math.min(1, state.timeLeft / T.maxTime));
+    ui.timeBarFill.style.width = (pct * 100) + "%";
+    ui.timeText.textContent = Math.max(0, state.timeLeft).toFixed(1) + "s";
+    ui.timeBarWrap.classList.toggle("low", state.timeLeft <= 5);
   }
   function renderBuffs() {
     let html = "";
@@ -1123,6 +1166,11 @@
       if (navigator.vibrate) navigator.vibrate(40);
     }
 
+    // ⏱️ 시간 감소 (레벨 오를수록 조금씩 빨리 닳음). 0이면 사망.
+    const T = CONFIG.timeAttack;
+    state.timeLeft -= (T.drainBase + (state.level - 1) * T.drainPerLevel) * dt;
+    if (state.timeLeft <= 0) { state.timeLeft = 0; dieNow("⏱️ 시간 초과!"); return; }
+
     // 버프 타이머
     if (state.shieldTime > 0) state.shieldTime = Math.max(0, state.shieldTime - dt);
     if (state.slowTime  > 0) state.slowTime  = Math.max(0, state.slowTime  - dt);
@@ -1203,16 +1251,29 @@
 
   function isInvincible() { return player.invincible > 0 || state.shieldTime > 0; }
 
+  // 공통 사망 처리
+  function dieNow(reason) {
+    if (state.dying) return;
+    player.hurt = 1.0;
+    spawnParticles(player.x, player.y - 22, "#f3a0a4", 18);
+    if (reason) showToast(reason);
+    Sound.play("over");
+    if (navigator.vibrate) navigator.vibrate([80, 50, 120]);
+    state.dying = true; state.dyingTimer = 0.9;
+    Speak.say("살찐당", 1.9, 0.95);
+  }
+
+  // 과자에 맞음 → 시간 깎임 (즉사 아님)
   function hitPlayer() {
     if (isInvincible() || state.dying) return;
-    state.life -= 1;
-    player.invincible = CONFIG.invincibleTime;
-    player.hurt = 1.0;                                  // 아파하는 표정 타이머
-    spawnParticles(player.x, player.y - 22, "#f3a0a4", 16);
+    player.invincible = CONFIG.invincibleTime;       // 짧은 무적(연속 피격 방지)
+    player.hurt = 0.6;
+    state.timeLeft -= CONFIG.timeAttack.hitPenalty;
+    spawnParticles(player.x, player.y - 22, "#f3a0a4", 14);
     Sound.play("hit");
-    if (navigator.vibrate) navigator.vibrate([60, 40, 90]);
-    // 사망: 아파하는 표정을 잠깐 보여준 뒤 게임오버 + "살찐당!"
-    if (state.life <= 0) { state.dying = true; state.dyingTimer = 0.9; Speak.say("살찐당", 1.9, 0.95); }
+    showToast(`🍩 -${CONFIG.timeAttack.hitPenalty}초!`);
+    if (navigator.vibrate) navigator.vibrate(70);
+    if (state.timeLeft <= 0) { state.timeLeft = 0; dieNow("시간이 다 됐다…"); }
   }
 
   function checkHit(ox, oy, or) {
@@ -1225,34 +1286,39 @@
     return Math.hypot(px - it.x, py - it.y) < pr + it.size * 0.5;
   }
 
+  const TA = () => CONFIG.timeAttack;
+  function addTime(sec) { state.timeLeft = Math.min(TA().maxTime, state.timeLeft + sec); }
+
   function collectItem(it) {
     if (navigator.vibrate) navigator.vibrate(30);
     playFlavor();   // 먹을 때마다 맛 이름
-    if (it.must) {  // 🌈 오리지널: 큰 보너스
+    if (it.must) {  // 🌈 오리지널: 시간 대량 회복 + 큰 점수
       spawnParticles(it.x, it.y, "#ffd0e8", 24);
       spawnParticles(it.x, it.y, "#a6e9ff", 12);
       state.score += CONFIG.must.bonus;
+      addTime(TA().rainbowGain);
       Sound.play("star");
-      showToast(`🌈 오리지널 겟! +${CONFIG.must.bonus}점`);
+      showToast(`🌈 오리지널! 시간 +${TA().rainbowGain}초`);
       return;
     }
     const def = ITEMS[it.key];
     spawnParticles(it.x, it.y, def.color, 14);
-    if (it.key === "shield") { state.shieldTime = def.duration; Sound.play("shield"); showToast("🛡️ 방패 ON!"); }
-    else if (it.key === "star") { state.score += def.bonus; Sound.play("star"); showToast(`⭐ +${def.bonus}점!`); }
-    else if (it.key === "clock") { state.slowTime = def.duration; Sound.play("clock"); showToast("⏰ 슬로우!"); }
+    addTime(TA().candyGain);   // 일반 캔디도 시간 회복
+    if (it.key === "shield") { state.shieldTime = def.duration; Sound.play("shield"); showToast(`🛡️ 방패 + 시간 +${TA().candyGain}초`); }
+    else if (it.key === "star") { state.score += def.bonus; Sound.play("star"); showToast(`⭐ +${def.bonus}점 · 시간 +${TA().candyGain}초`); }
+    else if (it.key === "clock") { state.slowTime = def.duration; Sound.play("clock"); showToast(`⏰ 슬로우 · 시간 +${TA().candyGain}초`); }
   }
 
-  // 🌈 오리지널을 놓쳤다 → 사망
+  // 🌈 오리지널을 놓침 → 시간 깎임 (즉사 아님)
   function missedMust() {
     if (state.dying) return;
-    player.hurt = 1.0;
-    spawnParticles(player.x, player.y - 22, "#b0a0ff", 16);
+    player.hurt = 0.6;
+    state.timeLeft -= TA().missPenalty;
+    spawnParticles(player.x, player.y - 22, "#b0a0ff", 14);
     Sound.play("hit");
-    if (navigator.vibrate) navigator.vibrate([60, 40, 90]);
-    showToast("🌈 오리지널을 놓쳤다…");
-    state.dying = true; state.dyingTimer = 0.9;
-    Speak.say("살찐당", 1.9, 0.95);
+    showToast(`🌈 놓쳤다! 시간 -${TA().missPenalty}초`);
+    if (navigator.vibrate) navigator.vibrate(70);
+    if (state.timeLeft <= 0) { state.timeLeft = 0; dieNow("시간이 다 됐다…"); }
   }
 
   function spawnParticles(x, y, color, n) {
