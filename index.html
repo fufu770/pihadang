@@ -1306,11 +1306,30 @@
     ctx.restore();
   }
 
-  // 자일로큐브 영당이 캔디 (모서리 둥근 큐브 + 깜찍한 얼굴) — 게임/범례 공용
-  function drawCandyCube(c, cx, cy, s, color) {
+  // 자일로큐브 영당이 캔디 (모서리 둥근 큐브 + 깜찍한 얼굴 + 흔들리는 팔다리) — 게임/범례 공용
+  // limbs: 팔다리 흔들림 위상(숫자). null/undefined면 팔다리 없음.
+  function drawCandyCube(c, cx, cy, s, color, limbs) {
     c.save();
     c.translate(cx, cy);
     c.lineJoin = "round"; c.lineCap = "round";
+
+    // 팔다리 (몸통 뒤에 먼저 그림 → 흔들흔들)
+    if (limbs !== null && limbs !== undefined) {
+      const a1 = Math.sin(limbs), a2 = Math.sin(limbs + Math.PI);     // 팔 좌우 반대
+      const l1 = Math.sin(limbs + 0.6), l2 = Math.sin(limbs + 0.6 + Math.PI); // 다리
+      c.strokeStyle = "#3d3027"; c.lineWidth = Math.max(2, s * 0.07);
+      // 팔
+      c.beginPath();
+      c.moveTo(-s * 0.48, -s * 0.04); c.lineTo(-s * 0.48 - s * 0.14, -s * 0.04 + a1 * s * 0.16);
+      c.moveTo(s * 0.48, -s * 0.04);  c.lineTo(s * 0.48 + s * 0.14,  -s * 0.04 + a2 * s * 0.16);
+      c.stroke();
+      // 다리
+      c.beginPath();
+      c.moveTo(-s * 0.2, s * 0.48); c.lineTo(-s * 0.2 + l1 * s * 0.12, s * 0.48 + s * 0.18);
+      c.moveTo(s * 0.2, s * 0.48);  c.lineTo(s * 0.2 + l2 * s * 0.12,  s * 0.48 + s * 0.18);
+      c.stroke();
+    }
+
     squirclePath(c, 0, 0, s, s, s * 0.3);
     c.fillStyle = color; c.fill();
     c.strokeStyle = "rgba(61,48,39,0.25)"; c.lineWidth = Math.max(1.5, s * 0.09); c.stroke();
@@ -1332,15 +1351,15 @@
     ctx.save();
     ctx.translate(it.x, it.y + yb);
     ctx.rotate(Math.sin(it.bob) * 0.12);
-    drawCandyCube(ctx, 0, 0, it.size, def.color);
+    drawCandyCube(ctx, 0, 0, it.size, def.color, it.bob * 2.2);  // 떨어질 때 팔다리 흔들흔들
     ctx.restore();
   }
-  // 좌측 상단 범례 큐브 렌더 (표정 그대로)
+  // 좌측 상단 범례 큐브 렌더 (팔다리 포함 — 떨어지는 아이템과 똑같이)
   function drawLegendCubes() {
     [["lgStar", ITEMS.star.color], ["lgClock", ITEMS.clock.color], ["lgShield", ITEMS.shield.color]].forEach(([id, col]) => {
       const cv = document.getElementById(id); if (!cv) return;
       const c = cv.getContext("2d"); c.clearRect(0, 0, cv.width, cv.height);
-      drawCandyCube(c, 22, 22, 28, col);
+      drawCandyCube(c, 22, 24, 22, col, 0.7);   // 고정 포즈(팔다리 보이게)
     });
   }
 
