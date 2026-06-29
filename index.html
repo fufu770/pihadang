@@ -50,6 +50,12 @@
 
     canvas { display: block; width: 100%; height: 100%; }
 
+    /* 고정 비율 무대(9:16) — 기기 크기와 무관하게 똑같은 난이도. JS가 크기/위치 지정 */
+    #stage {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      overflow: hidden; box-shadow: 0 0 30px rgba(86, 62, 40, 0.18);
+    }
+
     /* ===== 상단 HUD ===== */
     .top-ui {
       position: absolute;
@@ -235,8 +241,9 @@
 
 <body>
   <div id="gameWrap">
-    <canvas id="game"></canvas>
     <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
+    <div id="stage">
+    <canvas id="game"></canvas>
 
     <div class="top-ui">
       <div class="score-box">
@@ -263,6 +270,9 @@
       <div class="legend-row must"><canvas class="legend-cv" id="lgMust" width="44" height="44"></canvas>🌈 꼭 먹어!</div>
       <div class="legend-eat">영당이를 먹어랑!</div>
     </div>
+
+    <div class="bottom-hint">← 손가락으로 좌우 이동 →</div>
+    </div><!-- #stage -->
 
     <!-- 시작 패널 -->
     <div id="startPanel" class="center-panel">
@@ -294,7 +304,6 @@
       <button id="shareBtn" class="btn ghost">결과 공유하기</button>
     </div>
 
-    <div class="bottom-hint">← 손가락으로 좌우 이동 →</div>
     <div id="toast"></div>
   </div>
 
@@ -779,7 +788,11 @@
   };
 
   /* ------------------- ⑥ 상태 ------------------- */
-  let W = 0, H = 0, dpr = 1;
+  // 고정 논리 해상도(9:16). 모든 좌표·속도·크기는 이 기준 → 기기 크기와 무관하게 동일 난이도.
+  const GAME_W = 450, GAME_H = 800;
+  const stage = document.getElementById("stage");
+  let view = { scale: 1, left: 0, top: 0 };   // 화면→게임 좌표 변환용
+  let W = GAME_W, H = GAME_H, dpr = 1;
   let gameState = "ready";
   let lastTime = 0;
 
@@ -935,10 +948,18 @@
   function resize() {
     setVh();
     dpr = Math.min(window.devicePixelRatio || 1, 2);
-    W = window.innerWidth; H = window.innerHeight;
-    canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr);
-    canvas.style.width = W + "px"; canvas.style.height = H + "px";
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const winW = window.innerWidth, winH = window.innerHeight;
+    // 화면 안에 들어가는 가장 큰 9:16 박스 (레터박스)
+    const scale = Math.min(winW / GAME_W, winH / GAME_H);
+    const dispW = Math.round(GAME_W * scale), dispH = Math.round(GAME_H * scale);
+    view = { scale: dispW / GAME_W, left: (winW - dispW) / 2, top: (winH - dispH) / 2 };
+    // 무대(HUD까지 포함) 크기/위치 = 박스
+    stage.style.width = dispW + "px"; stage.style.height = dispH + "px";
+    // 캔버스: 표시 크기는 박스, 내부 좌표는 고정 GAME_W×GAME_H
+    canvas.width = Math.round(dispW * dpr); canvas.height = Math.round(dispH * dpr);
+    canvas.style.width = dispW + "px"; canvas.style.height = dispH + "px";
+    ctx.setTransform(view.scale * dpr, 0, 0, view.scale * dpr, 0, 0);
+    W = GAME_W; H = GAME_H;
     player.y = H - CONFIG.player.bottomGap;
     player.x = clamp(player.x || W / 2, CONFIG.player.margin, W - CONFIG.player.margin);
     player.targetX = player.x;
@@ -950,7 +971,9 @@
   /* ------------------- 입력 ------------------- */
   function pointerMove(clientX) {
     if (gameState !== "playing") return;
-    player.targetX = clamp(clientX, CONFIG.player.margin, W - CONFIG.player.margin);
+    // 화면 px → 게임 좌표
+    const gx = (clientX - view.left) / view.scale;
+    player.targetX = clamp(gx, CONFIG.player.margin, W - CONFIG.player.margin);
   }
   // 모바일: 상대 드래그 (손가락이 움직인 만큼만 영당이 이동 → 순간이동/과민 방지)
   let touchStartX = 0, touchBaseTarget = 0;
@@ -963,7 +986,7 @@
   canvas.addEventListener("touchmove", (e) => {
     e.preventDefault();
     if (gameState !== "playing") return;
-    const dx = (e.touches[0].clientX - touchStartX) * CONFIG.player.touchSensitivity;
+    const dx = (e.touches[0].clientX - touchStartX) / view.scale * CONFIG.player.touchSensitivity;
     player.targetX = clamp(touchBaseTarget + dx, CONFIG.player.margin, W - CONFIG.player.margin);
   }, { passive: false });
   // PC 마우스: 절대 위치(드래그) 그대로
