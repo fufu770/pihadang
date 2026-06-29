@@ -175,6 +175,10 @@
     }
     .name-input:focus { border-color: #d24a72; }
     .rank-title { font-size: 14px; font-weight: 900; color: #6c5a4b; margin: 18px 0 8px; }
+    .rank-refresh { font-family: inherit; font-size: 12px; font-weight: 800; color: #6c5a4b;
+      background: #ffe7c2; border: none; border-radius: 999px; padding: 4px 12px; margin-left: 6px;
+      cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .rank-refresh:active { transform: scale(.95); }
     .rank-list { display: flex; flex-direction: column; gap: 4px; }
     .rank-row {
       display: flex; align-items: center; font-size: 14px; font-weight: 700;
@@ -261,7 +265,7 @@
       <input id="startName" class="name-input" maxlength="8" placeholder="닉네임 (최대 8자)" />
       <button id="startBtn" class="btn">시작하기</button>
       <div class="small-text">손가락(또는 ← →)으로 영당이를 움직인당!</div>
-      <div class="rank-title">🏆 내 기록 TOP 10</div>
+      <div class="rank-title">🏆 전체 랭킹 TOP 10 <button id="refreshRankBtn" class="rank-refresh">↻ 새로고침</button></div>
       <div class="rank-list" id="startRankList"></div>
     </div>
 
@@ -270,7 +274,7 @@
       <h1>게임오버</h1>
       <p>최종 점수 <b id="finalScore">0</b>점 · Lv.<span id="finalLevel">1</span></p>
       <div id="rankMsg" class="rank-msg"></div>
-      <div class="rank-title">🏆 내 기록 TOP 10</div>
+      <div class="rank-title">🏆 전체 랭킹 TOP 10</div>
       <div class="rank-list" id="overRankList"></div>
       <div id="shareText" style="margin-top:16px;"></div>
       <button id="restartBtn" class="btn">다시하기</button>
@@ -742,6 +746,7 @@
     startName: document.getElementById("startName"),
     startRankList: document.getElementById("startRankList"),
     overRankList: document.getElementById("overRankList"),
+    refreshRankBtn: document.getElementById("refreshRankBtn"),
     rankMsg: document.getElementById("rankMsg"),
     buffBar: document.getElementById("buffBar"),
     toast: document.getElementById("toast"),
@@ -770,19 +775,11 @@
      백엔드: dreamlo 무료 리더보드(계정 불필요).
      dreamlo 무료는 HTTP만 지원 → HTTPS 페이지에서 쓰려고 CORS 프록시 경유.
      프록시는 여러 개를 순서대로 시도하고, 모두 실패하면 로컬 캐시로 대체. */
-  const LB = {
-    priv: "WW1md8BbekaO34DpR1TtwwjzCRbg_K3EOfxqMqAYjN9w",  // 쓰기 코드 (새 서버)
-    pub:  "6a41249e8f40bb1318412894",                       // 읽기 코드 (새 서버)
-    base: "http://dreamlo.com/lb",
-    // 우선순위대로 시도 (브라우저 환경에서 동작)
-    proxies: [
-      (u) => "https://corsproxy.io/?url=" + encodeURIComponent(u),
-      (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
-      (u) => "https://api.allorigins.win/get?url=" + encodeURIComponent(u),
-      (u) => "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(u),
-    ],
+  // Firebase Realtime DB — 온라인 공유 랭킹 (HTTPS+CORS, 프록시 불필요, 모두 같은 랭킹 공유)
+  const FB = {
+    base: "https://yongdang-default-rtdb.firebaseio.com",
   };
-  const RANK_KEY = "avoidGameRanks_v2";   // 마지막 성공 랭킹 로컬 캐시 (v2: 옛 캐시 무시→랭킹 초기화)
+  const RANK_KEY = "avoidGameRanks_v2";   // 온라인 실패 시 마지막 성공 랭킹 로컬 캐시(오프라인 폴백)
 
   let nickname = (localStorage.getItem("avoidGameName") || "나").slice(0, 8);
   ui.startName.value = nickname;
@@ -804,40 +801,33 @@
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  // 프록시들을 순서대로 시도해 응답 텍스트를 반환
-  async function lbFetchText(inner) {
-    let lastErr;
-    for (const mk of LB.proxies) {
-      const url = mk(inner);
-      try {
-        const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) { lastErr = new Error("HTTP " + res.status); continue; }
-        let text = await res.text();
-        if (url.indexOf("/get?") !== -1) {           // allorigins/get 은 {contents} 래핑
-          try { text = JSON.parse(text).contents; } catch (_) {}
-        }
-        return text;
-      } catch (e) { lastErr = e; }
-    }
-    throw lastErr || new Error("all proxies failed");
+  // 온라인 랭킹에 등록 — 이름별로 "최고기록 1줄"만 유지 (key = 닉네임 base64url)
+  async function fbSubmit(name, score, level) {
+    const key = b64e(name);
+    const url = `${FB.base}/scores/${key}.json`;
+    let prev = null;
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      if (r.ok) prev = await r.json();
+    } catch (_) {}
+    if (prev && Number(prev.score) >= Math.floor(score)) return;  // 기존 기록이 더 높으면 그대로 둠
+    await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name, score: Math.floor(score), level: level || 1, ts: Date.now() }),
+    });
   }
-
-  async function lbSubmit(name, score, level) {
-    const inner = `${LB.base}/${LB.priv}/add/${b64e(name)}/${Math.floor(score)}/0/${level || 1}`;
-    await lbFetchText(inner);
-  }
-  async function lbDelete(name) {   // 온라인 랭킹에서 해당 닉네임 기록 삭제
-    const inner = `${LB.base}/${LB.priv}/delete/${b64e(name)}`;
-    await lbFetchText(inner);
-  }
-  async function lbTop(n) {
-    const inner = `${LB.base}/${LB.pub}/json/${n || 10}`;
-    const text = await lbFetchText(inner);
-    const data = JSON.parse(text);
-    let e = (data && data.dreamlo && data.dreamlo.leaderboard) ? data.dreamlo.leaderboard.entry : null;
-    if (!e) return [];
-    if (!Array.isArray(e)) e = [e];
-    return e.map((x) => ({ name: b64d(x.name), score: Number(x.score), level: x.text }));
+  // 온라인 전체 랭킹 TOP n 불러오기 (점수 내림차순)
+  async function fbTop(n) {
+    const r = await fetch(`${FB.base}/scores.json`, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+    if (!data) return [];
+    const arr = Object.keys(data).map((k) => ({
+      name: data[k].name, score: Number(data[k].score), level: data[k].level,
+    }));
+    arr.sort((a, b) => b.score - a.score);
+    return arr.slice(0, n || 10);
   }
 
   function loadCache() { try { return JSON.parse(localStorage.getItem(RANK_KEY) || "[]"); } catch (_) { return []; } }
@@ -855,21 +845,19 @@
     }).join("");
   }
 
-  // 내 기록(이 기기) 랭킹 — 인터넷/계정 없이 로컬에만 저장
-  function addLocalScore(name, score, level) {
-    const list = loadCache();
-    const entry = { name: name, score: score, level: level };
-    list.push(entry);
-    list.sort((a, b) => b.score - a.score);
-    const rank = list.indexOf(entry) + 1;
-    const top = list.slice(0, 10);
-    saveCache(top);
-    return { list: top, entry: entry, rank: rank };
-  }
-  function refreshStartBoard() {
-    renderRanking(ui.startRankList, loadCache(), null);
+  // 시작화면 랭킹: 온라인(전체 공유)에서 불러오기. 실패하면 마지막 캐시로 폴백.
+  async function refreshStartBoard() {
+    try {
+      const top = await fbTop(10);
+      saveCache(top);
+      renderRanking(ui.startRankList, top, null);
+    } catch (_) {
+      renderRanking(ui.startRankList, loadCache(), null);
+    }
   }
   refreshStartBoard();
+  // 새로고침 버튼(다른 사람 기록 즉시 반영)
+  if (ui.refreshRankBtn) ui.refreshRankBtn.addEventListener("click", refreshStartBoard);
 
   /* ------------------- 캔버스 / 뷰포트 ------------------- */
   function setVh() {
@@ -966,11 +954,22 @@
     ui.finalLevel.textContent = state.level;
     ui.shareText.textContent = buildShareText(finalScore, state.level);
 
-    // 내 기록(이 기기) 랭킹에 등록 + 표시
-    const res = addLocalScore(nickname, finalScore, state.level);
-    ui.rankMsg.textContent = (res.rank <= 10) ? `🏆 내 기록 ${res.rank}위!` : `이번 점수 ${finalScore}점`;
-    renderRanking(ui.overRankList, res.list, (r) => r === res.entry);
-    renderRanking(ui.startRankList, res.list, null);
+    // 온라인 전체 공유 랭킹에 등록 + 표시 (실패해도 게임은 정상 진행)
+    ui.rankMsg.textContent = "🏆 랭킹 등록 중...";
+    renderRanking(ui.overRankList, loadCache(), null);   // 우선 캐시로 즉시 표시
+    (async () => {
+      try {
+        await fbSubmit(nickname, finalScore, state.level);
+        const top = await fbTop(10);
+        saveCache(top);
+        const myIdx = top.findIndex((r) => r.name === nickname);
+        ui.rankMsg.textContent = (myIdx >= 0) ? `🏆 전체 ${myIdx + 1}위!` : `이번 점수 ${finalScore}점`;
+        renderRanking(ui.overRankList, top, (r) => r.name === nickname);
+        renderRanking(ui.startRankList, top, null);
+      } catch (_) {
+        ui.rankMsg.textContent = `이번 점수 ${finalScore}점 (오프라인)`;
+      }
+    })();
 
     ui.overPanel.classList.remove("hidden");
   }
