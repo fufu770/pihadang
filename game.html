@@ -797,6 +797,16 @@
 
   let nickname = (localStorage.getItem("avoidGameName") || "").slice(0, 8);
   let claimedName = "";   // 이번 세션에서 차지한 닉네임(재시작 시 중복검사 면제)
+  // 이 기기에서 내가 쓴 닉네임 목록 — 내 이름은 다음에 또 쓸 수 있게 중복검사 면제
+  let myNames = [];
+  try { myNames = JSON.parse(localStorage.getItem("avoidGameMyNames") || "[]"); } catch (_) {}
+  if (nickname && !myNames.includes(nickname)) myNames.push(nickname);  // 이전에 쓰던 닉네임도 내 것으로
+  function rememberMyName(n) {
+    if (n && !myNames.includes(n)) {
+      myNames.push(n);
+      try { localStorage.setItem("avoidGameMyNames", JSON.stringify(myNames.slice(-50))); } catch (_) {}
+    }
+  }
   ui.startName.value = nickname;
   function syncNameValid() {
     // 닉네임 비어있으면 빨간 테두리로 "입력하세요" 표시
@@ -989,8 +999,8 @@
     Sound.init();
     unlockAudio();
 
-    // 중복 아이디 검사 — 내가 이번 판에 차지한 이름이면 통과(재시작 허용)
-    if (nickname !== claimedName) {
+    // 중복 아이디 검사 — 내가 쓴 이름(이번 세션 or 이 기기 기록)이면 통과
+    if (nickname !== claimedName && !myNames.includes(nickname)) {
       ui.nameMsg && (ui.nameMsg.textContent = "확인 중...");
       ui.nameMsg && (ui.nameMsg.style.color = "#6c5a4b");
       const taken = await isNameTaken(nickname);
@@ -999,6 +1009,7 @@
     }
 
     claimedName = nickname;
+    rememberMyName(nickname);   // 내 이름으로 기억 → 다음에 또 쓸 수 있음
     localStorage.setItem("avoidGameName", nickname);
     if (ui.nameMsg) ui.nameMsg.textContent = "";
     Bgm.start();
