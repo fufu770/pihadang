@@ -195,7 +195,10 @@
     .rank-row.rank-new { background: #ffe0a3; color: #3d3027; }
     .rank-pos { width: 30px; text-align: center; font-weight: 900; }
     .rank-name { flex: 1; text-align: left; padding-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .rank-score { font-weight: 900; }
+    .rank-lv { font-size: 12px; font-weight: 800; color: #c06a2e; background: #ffe7c2;
+      border-radius: 999px; padding: 2px 8px; margin-right: 8px; white-space: nowrap; }
+    .rank-row.rank-new .rank-lv { background: #ffcf8a; }
+    .rank-score { font-weight: 900; min-width: 56px; text-align: right; white-space: nowrap; }
     .rank-empty { font-size: 13px; color: #8b7868; padding: 10px; }
     .rank-msg { font-size: 17px; font-weight: 900; color: #e1577d; margin-bottom: 12px; }
     .rank-reset { font-size: 13px; color: #8b7868; margin-top: 8px; padding: 9px; cursor: pointer; text-decoration: underline; border-radius: 10px; }
@@ -853,9 +856,11 @@
     container.innerHTML = ranks.slice(0, 10).map((r, i) => {
       const pos = medal[i] || (i + 1);
       const isHL = (typeof highlight === "function") ? highlight(r) : (r === highlight);
+      const lv = Number(r.level) || 1;
       return `<div class="rank-row${isHL ? " rank-new" : ""}"><span class="rank-pos">${pos}</span>` +
              `<span class="rank-name">${escapeHtml(r.name)}</span>` +
-             `<span class="rank-score">${r.score}</span></div>`;
+             `<span class="rank-lv">Lv.${lv}</span>` +
+             `<span class="rank-score">${r.score}점</span></div>`;
     }).join("");
   }
 
