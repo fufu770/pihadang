@@ -55,6 +55,30 @@
       position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
       overflow: hidden; box-shadow: 0 0 30px rgba(86, 62, 40, 0.18);
     }
+    /* 엔딩 중에는 게임 HUD 숨김 */
+    #stage.ending-mode .top-ui, #stage.ending-mode #timeBarWrap,
+    #stage.ending-mode #legend, #stage.ending-mode #buffBar,
+    #stage.ending-mode .bottom-hint { display: none; }
+
+    /* 🎉 THE END 문구 */
+    #endText {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 88%; text-align: center; z-index: 30; pointer-events: none;
+      animation: endFade 1s ease both;
+    }
+    #endText.show-btn { pointer-events: auto; }
+    @keyframes endFade { from { opacity: 0; transform: translate(-50%, -38%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+    .end-the {
+      font-family: 'Black Han Sans', 'Jua', sans-serif; font-size: 40px; letter-spacing: -0.03em;
+      color: #fff; text-shadow: 0 3px 0 #e0556f, 0 6px 18px rgba(224,85,111,0.5); margin-bottom: 10px;
+    }
+    .end-sub {
+      font-family: 'Jua', sans-serif; font-size: 21px; color: #3d3027;
+      background: rgba(255,255,255,0.82); border-radius: 16px; padding: 12px 14px; display: inline-block;
+      box-shadow: 0 8px 22px rgba(86,62,40,0.18);
+    }
+    .end-sub b { color: #e0556f; }
+    #endRestartBtn { width: auto; margin: 22px auto 0; padding: 13px 30px; pointer-events: auto; }
 
     /* ===== 상단 HUD ===== */
     .top-ui {
@@ -272,6 +296,13 @@
     </div>
 
     <div class="bottom-hint">← 손가락으로 좌우 이동 →</div>
+
+    <!-- 🎉 엔딩(레벨20 클리어) 문구 오버레이 -->
+    <div id="endText" class="hidden">
+      <div class="end-the">— THE END —</div>
+      <div class="end-sub">무설탕 캔디는 <b>자일로큐브</b> 🍬</div>
+      <button id="endRestartBtn" class="btn">다시하기</button>
+    </div>
     </div><!-- #stage -->
 
     <!-- 시작 패널 -->
@@ -529,6 +560,25 @@
       osc.start(t); osc.stop(t + def.dur + 0.02);
     },
     toggle() { this.enabled = !this.enabled; return this.enabled; },
+    // 🎉 웅장한 빵빠레 (상승 아르페지오 + 마무리 화음)
+    fanfare() {
+      if (!this.enabled || !this.ctx) return;
+      const t0 = this.ctx.currentTime;
+      const notes = [523.25, 659.25, 783.99, 1046.5];   // C E G C (도미솔도)
+      const blast = (freq, start, dur, gain, type) => {
+        const osc = this.ctx.createOscillator(), g = this.ctx.createGain();
+        osc.type = type || "triangle"; osc.frequency.setValueAtTime(freq, start);
+        g.gain.setValueAtTime(0.0001, start);
+        g.gain.exponentialRampToValueAtTime(gain, start + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+        osc.connect(g).connect(this.ctx.destination);
+        osc.start(start); osc.stop(start + dur + 0.03);
+      };
+      notes.forEach((f, i) => blast(f, t0 + i * 0.13, 0.32, 0.16));   // 띠리리링↑
+      // 마지막에 화음 팡!
+      [523.25, 659.25, 783.99, 1046.5].forEach((f) => blast(f, t0 + 0.55, 0.9, 0.13, "sawtooth"));
+      [1046.5, 1318.5].forEach((f) => blast(f, t0 + 1.4, 0.7, 0.12));
+    },
   };
 
   /* ------------------- ⑤-1 음성(말풍선 효과음) — "영당"/"살찐당" -------------------
@@ -785,6 +835,8 @@
     rankMsg: document.getElementById("rankMsg"),
     buffBar: document.getElementById("buffBar"),
     toast: document.getElementById("toast"),
+    endText: document.getElementById("endText"),
+    endRestartBtn: document.getElementById("endRestartBtn"),
   };
 
   /* ------------------- ⑥ 상태 ------------------- */
@@ -807,6 +859,15 @@
   const obstacles = [];
   const items = [];
   const particles = [];
+
+  // 🎉 엔딩(레벨20 클리어) 관련
+  const endImg = new Image(); let endImgReady = false;
+  endImg.onload = () => { endImgReady = true; };
+  endImg.src = "ending.png";
+  const endVoice = new Audio("무설탕캔디는 자일로큐브.m4a");   // THE END 때 재생할 음성
+  endVoice.preload = "auto";
+  const endParts = [];   // 폭죽·꽃가루
+  let ending = null;     // 엔딩 진행 상태
 
   ui.best.textContent = state.best;
 
@@ -963,14 +1024,17 @@
     player.y = H - CONFIG.player.bottomGap;
     player.x = clamp(player.x || W / 2, CONFIG.player.margin, W - CONFIG.player.margin);
     player.targetX = player.x;
-    if (gameState !== "playing") draw();
+    if (gameState === "ending") drawEnding();
+    else if (gameState !== "playing") draw();
   }
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", () => setTimeout(resize, 200));
 
   /* ------------------- 입력 ------------------- */
+  // 조작 가능 상태: 플레이 중 또는 엔딩에서 이미지 받아먹기 전
+  const canControl = () => gameState === "playing" || (gameState === "ending" && ending && !ending.eaten);
   function pointerMove(clientX) {
-    if (gameState !== "playing") return;
+    if (!canControl()) return;
     // 화면 px → 게임 좌표
     const gx = (clientX - view.left) / view.scale;
     player.targetX = clamp(gx, CONFIG.player.margin, W - CONFIG.player.margin);
@@ -979,13 +1043,13 @@
   let touchStartX = 0, touchBaseTarget = 0;
   canvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
-    if (gameState !== "playing") return;
+    if (!canControl()) return;
     touchStartX = e.touches[0].clientX;
     touchBaseTarget = player.targetX;
   }, { passive: false });
   canvas.addEventListener("touchmove", (e) => {
     e.preventDefault();
-    if (gameState !== "playing") return;
+    if (!canControl()) return;
     const dx = (e.touches[0].clientX - touchStartX) / view.scale * CONFIG.player.touchSensitivity;
     player.targetX = clamp(touchBaseTarget + dx, CONFIG.player.margin, W - CONFIG.player.margin);
   }, { passive: false });
@@ -1001,6 +1065,9 @@
     else if (k === "ArrowRight" || k === "d" || k === "D") { keys.right = true; e.preventDefault(); }
     else if (k === "Enter" || k === " ") {
       if (gameState !== "playing") { startGame(); e.preventDefault(); }
+    }
+    else if (k === "e" || k === "E") {   // 🎬 엔딩 미리보기 치트(플레이 중 E)
+      if (gameState === "playing") { winGame(); e.preventDefault(); }
     }
   });
   window.addEventListener("keyup", (e) => {
@@ -1020,6 +1087,10 @@
     player.x = W / 2; player.targetX = W / 2; player.y = H - CONFIG.player.bottomGap; player.invincible = 0; player.facing = 1; player.hurt = 0;
     obstacles.length = 0; items.length = 0; particles.length = 0;
     itemBag.length = 0;   // 새 판마다 아이템 가방 초기화 → 골고루 시작
+    endParts.length = 0; ending = null;   // 엔딩 상태 초기화
+    try { endVoice.pause(); endVoice.currentTime = 0; } catch (_) {}
+    stage.classList.remove("ending-mode");
+    ui.endText.classList.add("hidden"); ui.endText.classList.remove("show-btn");
     updateUI(); renderBuffs();
   }
   function nameError(msg) {
@@ -1099,6 +1170,15 @@
 
   document.getElementById("startBtn").addEventListener("click", startGame);
   document.getElementById("restartBtn").addEventListener("click", startGame);
+  if (ui.endRestartBtn) ui.endRestartBtn.addEventListener("click", () => {
+    ui.endText.classList.add("hidden"); stage.classList.remove("ending-mode");
+    try { endVoice.pause(); endVoice.currentTime = 0; } catch (_) {}
+    refreshStartBoard();
+    ui.startPanel.classList.remove("hidden");
+    gameState = "ready";
+    endParts.length = 0; ending = null;
+    draw();
+  });
 
   /* ------------------- ⑦ 공유 ------------------- */
   function buildShareText(score, level) {
@@ -1293,6 +1373,11 @@
       Sound.play("levelup");
       showToast(`🔥 난이도 UP!  Lv.${state.level}`);
       if (navigator.vibrate) navigator.vibrate(40);
+    }
+
+    // 🎉 레벨 20 끝까지 생존 → 엔딩!
+    if (state.elapsed >= CONFIG.difficulty.maxLevel * CONFIG.difficulty.levelInterval) {
+      winGame(); return;
     }
 
     // ⏱️ 시간 감소 (레벨 오를수록 조금씩 빨리 닳음). 0이면 사망.
@@ -1680,12 +1765,140 @@
     drawPlayer();
   }
 
+  /* ------------------- 🎉 엔딩 (레벨20 클리어) ------------------- */
+  const CONFETTI_COLORS = ["#ff6fae", "#ffd166", "#6fd3ff", "#9ad6a6", "#c79bff", "#ff9466", "#ff5d8f"];
+  function spawnConfetti(n) {
+    for (let i = 0; i < n && endParts.length < 420; i++) {
+      endParts.push({ type: "confetti", x: random(0, W), y: random(-30, -6),
+        vx: random(-18, 18), vy: random(70, 150), rot: random(0, 6.28), vr: random(-5, 5),
+        w: random(6, 11), h: random(9, 15), color: CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0],
+        life: random(4, 7) });
+    }
+  }
+  function spawnFirework(cx, cy) {
+    const col = CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0];
+    const n = 22;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2, sp = random(120, 230);
+      endParts.push({ type: "spark", x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: random(0.7, 1.2), maxLife: 1.2, size: random(2.5, 4.5), color: col, grav: 90 });
+    }
+  }
+  function winGame() {
+    if (gameState === "ending") return;
+    gameState = "ending";
+    state.level = CONFIG.difficulty.maxLevel;
+    obstacles.length = 0; items.length = 0; particles.length = 0;
+    Bgm.stop();
+    Sound.fanfare();
+    Speak.say("축하한당", 1.9, 0.95);
+    if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+    stage.classList.add("ending-mode");
+    ui.endText.classList.add("hidden");
+    ui.endText.classList.remove("show-btn");
+    // 화면 위쪽에서 천천히 내려오는 자일로큐브 이미지
+    const sz = Math.min(W * 0.42, 200);
+    ending = { t: 0, fwTimer: 0, eaten: false, eatenT: 0,
+      img: { x: W / 2, y: -sz, size: sz, vy: 110 } };
+    player.targetX = W / 2;
+    // 클리어 점수 온라인 랭킹 등록(레벨 20)
+    const finalScore = Math.floor(state.score);
+    (async () => { try { await fbSubmit(nickname, finalScore, CONFIG.difficulty.maxLevel); saveCache(await fbTop(10)); } catch (_) {} })();
+  }
+  function updateEnding(dt) {
+    const e = ending; if (!e) return;
+    e.t += dt;
+    // 플레이어 이동 (엔딩에서도 조작 가능 — 이미지 받아먹기)
+    if (!e.eaten) {
+      if (keys.left || keys.right) {
+        const step = CONFIG.player.keyboardSpeed * dt;
+        player.targetX = clamp(player.targetX + (keys.right - keys.left) * step, CONFIG.player.margin, W - CONFIG.player.margin);
+      }
+      const k = 1 - Math.exp(-CONFIG.player.followEase * dt);
+      player.x += (player.targetX - player.x) * k;
+      const vx = player.targetX - player.x;
+      if (Math.abs(vx) > 1.5) player.facing = vx > 0 ? 1 : -1;
+    }
+    // 꽃가루 계속 흩날림
+    spawnConfetti(3);
+    // 폭죽 주기적으로 펑
+    e.fwTimer -= dt;
+    if (e.fwTimer <= 0 && !e.eaten) {
+      spawnFirework(random(W * 0.2, W * 0.8), random(H * 0.18, H * 0.42));
+      e.fwTimer = random(0.45, 0.8);
+      Sound.play("star");
+    }
+    // 파티클 이동
+    for (let i = endParts.length - 1; i >= 0; i--) {
+      const p = endParts[i];
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.type === "confetti") { p.vx += Math.sin(e.t * 3 + i) * 6 * dt; p.rot += p.vr * dt; }
+      else { p.vy += p.grav * dt; p.life -= dt; }
+      p.life -= (p.type === "confetti") ? dt * 0.15 : 0;
+      if (p.life <= 0 || p.y > H + 40) endParts.splice(i, 1);
+    }
+    if (!e.eaten) {
+      // 이미지 하강 + 플레이어 쪽으로 살짝 따라옴(먹기 쉽게)
+      e.img.y += e.img.vy * dt;
+      e.img.x += (player.x - e.img.x) * Math.min(1, dt * 1.6);
+      // 캐릭터가 먹음(닿음) 또는 바닥 근처 도달 → 먹은 것으로
+      const reach = player.y + CONFIG.player.hitOffsetY;
+      const hit = Math.hypot(player.x - e.img.x, reach - e.img.y) < CONFIG.player.hitRadius + e.img.size * 0.42;
+      if (hit || e.img.y > player.y - 10) {
+        e.eaten = true; e.eatenT = 0;
+        for (let k = 0; k < 6; k++) spawnFirework(e.img.x + random(-40, 40), e.img.y + random(-40, 40));
+        spawnParticles(e.img.x, e.img.y, "#ffd0e8", 30);
+        Sound.play("star");
+        // 🔊 먹는 순간 "무설탕 캔디는 자일로큐브" 음성 재생
+        if (Sound.enabled) { try { endVoice.currentTime = 0; endVoice.play().catch(() => {}); } catch (_) {} }
+        if (navigator.vibrate) navigator.vibrate(80);
+      }
+    } else {
+      e.eatenT += dt;
+      // 먹은 뒤 잠깐 후 THE END 문구 등장
+      if (e.eatenT > 0.5 && ui.endText.classList.contains("hidden")) {
+        ui.endText.classList.remove("hidden");
+      }
+      if (e.eatenT > 1.3) ui.endText.classList.add("show-btn");
+    }
+  }
+  function drawEndParts() {
+    for (const p of endParts) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.type === "spark" ? p.life / p.maxLife : 1));
+      ctx.fillStyle = p.color;
+      if (p.type === "confetti") {
+        ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      } else {
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+  function drawEnding() {
+    ctx.clearRect(0, 0, W, H);
+    drawBackground();
+    drawEndParts();
+    drawPlayer();
+    // 내려오는 자일로큐브 이미지
+    const e = ending;
+    if (e && !e.eaten && endImgReady) {
+      const s = e.img.size;
+      ctx.save();
+      ctx.shadowColor = "rgba(86,62,40,0.3)"; ctx.shadowBlur = 18; ctx.shadowOffsetY = 8;
+      ctx.drawImage(endImg, e.img.x - s / 2, e.img.y - s / 2, s, s);
+      ctx.restore();
+    }
+  }
+
   /* ------------------- 메인 루프 ------------------- */
   function loop(now) {
-    if (gameState !== "playing") return;
+    if (gameState !== "playing" && gameState !== "ending") return;
     let dt = (now - lastTime) / 1000; lastTime = now;
     dt = Math.min(dt, 0.05);
-    update(dt); draw();
+    if (gameState === "ending") { updateEnding(dt); drawEnding(); }
+    else { update(dt); draw(); }
     requestAnimationFrame(loop);
   }
 
