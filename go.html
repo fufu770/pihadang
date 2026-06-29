@@ -866,15 +866,21 @@
       }
     } catch (_) {}
   }
-  // 온라인 전체 랭킹 TOP n 불러오기 (점수 내림차순)
+  // 온라인 전체 랭킹 TOP n — 닉네임당 "최고 점수 1줄"만 (점수 내림차순)
   async function fbTop(n) {
     const r = await fetch(`${FB.base}/scores.json`, { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const data = await r.json();
     if (!data) return [];
-    const arr = Object.keys(data).map((k) => ({
-      name: data[k].name, score: Number(data[k].score), level: data[k].level,
-    }));
+    const best = {};   // 닉네임 → 최고 기록
+    Object.keys(data).forEach((k) => {
+      const e = data[k];
+      const score = Number(e.score) || 0;
+      if (!best[e.name] || score > best[e.name].score) {
+        best[e.name] = { name: e.name, score: score, level: e.level };
+      }
+    });
+    const arr = Object.keys(best).map((nm) => best[nm]);
     arr.sort((a, b) => b.score - a.score);
     return arr.slice(0, n || 10);
   }
@@ -1042,9 +1048,9 @@
         await fbSubmit(nickname, finalScore, state.level);
         const top = await fbTop(10);
         saveCache(top);
-        const isMine = (r) => r.name === nickname && Number(r.score) === finalScore;
+        const isMine = (r) => r.name === nickname;
         const myIdx = top.findIndex(isMine);
-        ui.rankMsg.textContent = (myIdx >= 0) ? `🏆 전체 ${myIdx + 1}위!` : `이번 점수 ${finalScore}점`;
+        ui.rankMsg.textContent = (myIdx >= 0) ? `🏆 전체 ${myIdx + 1}위! (내 최고 ${top[myIdx].score}점)` : `이번 점수 ${finalScore}점`;
         renderRanking(ui.overRankList, top, isMine);
         renderRanking(ui.startRankList, top, null);
       } catch (_) {
