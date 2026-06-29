@@ -390,6 +390,18 @@
     shield: { color: "#9ad6a6", duration: 5, label: "보호" },          // 민트 — 잠깐 무적
   };
   const ITEM_KEYS = Object.keys(ITEMS);
+  // 셔플 가방: 종류를 골고루 떨어뜨림 (한 종류만 몰리는 운빨 방지)
+  let itemBag = [];
+  function nextItemKey() {
+    if (itemBag.length === 0) {
+      itemBag = ITEM_KEYS.slice();
+      for (let i = itemBag.length - 1; i > 0; i--) {   // Fisher–Yates 셔플
+        const j = (Math.random() * (i + 1)) | 0;
+        [itemBag[i], itemBag[j]] = [itemBag[j], itemBag[i]];
+      }
+    }
+    return itemBag.pop();
+  }
 
   /* ------------------- ③ 캐릭터 스킨 (영당이 — 색깔별) -------------------
      body: 몸통(둥근 사각형) 색, stroke: 얼굴/팔다리 외곽선 색 */
@@ -984,6 +996,7 @@
     state.itemTimer = random(CONFIG.item.spawnMin, CONFIG.item.spawnMax);
     player.x = W / 2; player.targetX = W / 2; player.y = H - CONFIG.player.bottomGap; player.invincible = 0; player.facing = 1; player.hurt = 0;
     obstacles.length = 0; items.length = 0; particles.length = 0;
+    itemBag.length = 0;   // 새 판마다 아이템 가방 초기화 → 골고루 시작
     updateUI(); renderBuffs();
   }
   function nameError(msg) {
@@ -1217,7 +1230,7 @@
     });
   }
   function spawnItem() {
-    const key = ITEM_KEYS[(Math.random() * ITEM_KEYS.length) | 0];
+    const key = nextItemKey();
     const s = CONFIG.item.size;
     items.push({ x: random(s, W - s), y: -s, size: s, key, bob: random(0, Math.PI*2) });
   }
