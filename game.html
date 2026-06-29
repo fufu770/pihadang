@@ -818,21 +818,26 @@
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  // 온라인 랭킹에 등록 — 이름별로 "최고기록 1줄"만 유지 (key = 닉네임 base64url)
+  // 온라인 랭킹에 등록 — 매 판이 각각 순위에 오름(아케이드 식). 같은 사람 여러 줄 가능.
   async function fbSubmit(name, score, level) {
-    const key = b64e(name);
-    const url = `${FB.base}/scores/${key}.json`;
-    let prev = null;
-    try {
-      const r = await fetch(url, { cache: "no-store" });
-      if (r.ok) prev = await r.json();
-    } catch (_) {}
-    if (prev && Number(prev.score) >= Math.floor(score)) return;  // 기존 기록이 더 높으면 그대로 둠
-    await fetch(url, {
-      method: "PUT",
+    await fetch(`${FB.base}/scores.json`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name, score: Math.floor(score), level: level || 1, ts: Date.now() }),
     });
+    // DB 비대 방지: 상위 100개만 남기고 나머지 정리
+    try {
+      const r = await fetch(`${FB.base}/scores.json`, { cache: "no-store" });
+      const data = await r.json();
+      if (data) {
+        const keys = Object.keys(data);
+        if (keys.length > 100) {
+          keys.sort((a, b) => Number(data[b].score) - Number(data[a].score));
+          await Promise.all(keys.slice(100).map((k) =>
+            fetch(`${FB.base}/scores/${k}.json`, { method: "DELETE" })));
+        }
+      }
+    } catch (_) {}
   }
   // 온라인 전체 랭킹 TOP n 불러오기 (점수 내림차순)
   async function fbTop(n) {
@@ -993,9 +998,10 @@
         await fbSubmit(nickname, finalScore, state.level);
         const top = await fbTop(10);
         saveCache(top);
-        const myIdx = top.findIndex((r) => r.name === nickname);
+        const isMine = (r) => r.name === nickname && Number(r.score) === finalScore;
+        const myIdx = top.findIndex(isMine);
         ui.rankMsg.textContent = (myIdx >= 0) ? `🏆 전체 ${myIdx + 1}위!` : `이번 점수 ${finalScore}점`;
-        renderRanking(ui.overRankList, top, (r) => r.name === nickname);
+        renderRanking(ui.overRankList, top, isMine);
         renderRanking(ui.startRankList, top, null);
       } catch (_) {
         ui.rankMsg.textContent = `이번 점수 ${finalScore}점 (오프라인)`;
