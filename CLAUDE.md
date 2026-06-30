@@ -49,6 +49,7 @@
 - 조작: 모바일 **상대 드래그**(touchSensitivity), PC 마우스/키보드(←→·A/D), Enter/Space 시작
 - 캐릭터: 영당이 4색 스킨, 방향성 달리기 모션, 피격 시 아파하는 표정
 - 사운드: BGM(mp3), 효과음(WebAudio), 아이템 먹을 때 맛이름 음성(셔플·단일채널), 사망 시 "살찐당"(TTS)
+- **배경 낮↔밤 변화**: `drawBackground`가 `state.elapsed`로 `SKY_CYCLE`(80초)마다 낮→노을→밤→새벽 순환(`SKY` 키프레임+`skyAt`/`_mix`). 별·해·달 표시. 밤정도 `skyNight` 기록 → `draw()`에서 밤엔 장애물·아이템에 흰 외곽 글로우(shadowBlur)로 또렷하게. 상단 HUD 글자 흰 글로우 text-shadow(가독성). 메인/공유 썸네일 = `ogimage2.png`(영당이 단체 포스터).
 - 랭킹: 온라인 **TOP20**(게임오버+시작화면 표시), 카톡 공유 + OG 카드
 - **닉네임 규칙**: 빈/욕설(`hasProfanity`+`BANNED_WORDS` 블록리스트)/중복(`isNameTaken`, 내 이름은 `myNames`/`claimedName` 면제) 차단. 입력창 타이핑 중엔 게임 단축키(A/D/E/스페이스) 무시(`isField`로 e.target+activeElement 검사), Enter는 시작 유지.
 - 캐시 회피용 진입 파일에 **fix.html, latest.html** 추가됨(현재 index/play/go/clean/game/score/fix/latest 8개 동일 복사). + `<head>`에 no-cache 메타 3종 넣어 앞으로 새로고침만으로 최신 반영.
