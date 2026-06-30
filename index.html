@@ -1310,8 +1310,8 @@
   }
   function renderBuffs() {
     let html = "";
-    if (state.shieldTime > 0) html += `<div class="buff">🛡️ ${state.shieldTime.toFixed(1)}s</div>`;
-    if (state.slowTime > 0)   html += `<div class="buff">⏰ ${state.slowTime.toFixed(1)}s</div>`;
+    if (state.shieldTime > 0) html += `<div class="buff">🛡️ 방패 ${state.shieldTime.toFixed(1)}s</div>`;
+    if (state.slowTime > 0)   html += `<div class="buff">⏰ 슬로우 ${state.slowTime.toFixed(1)}s</div>`;
     ui.buffBar.innerHTML = html;
   }
   function showToast(msg) {
