@@ -51,7 +51,9 @@
 - 사운드: BGM(mp3), 효과음(WebAudio), 아이템 먹을 때 맛이름 음성(셔플·단일채널), 사망 시 "살찐당"(TTS)
 - 랭킹: 온라인 **TOP20**(게임오버+시작화면 표시), 카톡 공유 + OG 카드
 - **닉네임 규칙**: 빈/욕설(`hasProfanity`+`BANNED_WORDS` 블록리스트)/중복(`isNameTaken`, 내 이름은 `myNames`/`claimedName` 면제) 차단. 입력창 타이핑 중엔 게임 단축키(A/D/E/스페이스) 무시(`isField`로 e.target+activeElement 검사), Enter는 시작 유지.
-- 캐시 회피용 진입 파일에 **fix.html** 추가됨(현재 index/play/go/clean/game/score/fix 7개 동일 복사).
+- 캐시 회피용 진입 파일에 **fix.html, latest.html** 추가됨(현재 index/play/go/clean/game/score/fix/latest 8개 동일 복사). + `<head>`에 no-cache 메타 3종 넣어 앞으로 새로고침만으로 최신 반영.
+- **게임오버 공유 = 카카오톡 직접 공유(도전장)**: 노란 펄스 버튼 "🥊 친구에게 도전장 보내기". Kakao JS SDK 2.7.5 로드 + `Kakao.init("9d3818b7ccfc3a16ab00e1b498b03a98")`(JS키). `shareKakao()` = `Kakao.Share.sendDefault`(feed: ogimage.png 카드 + "🏃 도전하기" 버튼, link=score.html). 폴백: navigator.share→링크복사.
+  - 카카오 개발자 앱: **당피하기, 앱 ID 1499964**, 계정 for3015@gmail.com(은영). 공유 작동에 도메인 **2곳** 등록 필수: ① 제품 링크 관리>웹 도메인 ② 플랫폼키>JavaScript키>JavaScript SDK 도메인 — 둘 다 `https://fufu770.github.io`. (안 하면 sharer.kakao.com 4019 오류)
 
 ## 주요 코드 위치 (index.html 내 CONFIG/모듈)
 - `CONFIG` — player/obstacle/difficulty/item/must/timeAttack 전부
