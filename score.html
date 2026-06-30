@@ -1073,6 +1073,12 @@
   // 키보드: ← → 또는 A D 로 좌우 이동, Enter/Space 로 시작·다시하기
   const keys = { left: false, right: false };
   window.addEventListener("keydown", (e) => {
+    // 입력창(닉네임)에 타이핑 중이면 게임 단축키 무시 → A/D/E/스페이스 정상 입력
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+      if (e.key === "Enter") { startGame(); e.preventDefault(); }   // Enter로 시작은 유지
+      return;
+    }
     const k = e.key;
     if (k === "ArrowLeft" || k === "a" || k === "A") { keys.left = true; e.preventDefault(); }
     else if (k === "ArrowRight" || k === "d" || k === "D") { keys.right = true; e.preventDefault(); }
