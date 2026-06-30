@@ -350,8 +350,13 @@
     <div id="toast"></div>
   </div>
 
+  <!-- 카카오 SDK (카톡 직접 공유용) -->
+  <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.5/kakao.min.js" crossorigin="anonymous"></script>
   <script>
   "use strict";
+  // 카카오 초기화 (당피하기 앱 JavaScript 키)
+  const KAKAO_KEY = "9d3818b7ccfc3a16ab00e1b498b03a98";
+  try { if (window.Kakao && !Kakao.isInitialized()) Kakao.init(KAKAO_KEY); } catch (_) {}
   // ── 1회성 기록 초기화: 옛 최고점수/랭킹 캐시를 한 번 싹 지움 (4953 잔존 문제 해결) ──
   try {
     if (localStorage.getItem("resetFlag_v3") !== "1") {
@@ -1238,16 +1243,38 @@
       const ok = document.execCommand("copy"); document.body.removeChild(ta); return ok;
     } catch (_) { return false; }
   }
+  const SHARE_URL = "https://fufu770.github.io/pihadang/score.html";
+  // 카카오톡으로 바로 공유 (예쁜 카드 + 도전하기 버튼)
+  function shareKakao(score, level) {
+    const who = (nickname && nickname !== "나") ? nickname : "친구";
+    Kakao.Share.sendDefault({
+      objectType: "feed",
+      content: {
+        title: "🥊 당피하기 도전장!",
+        description: `${who} 님이 ${score}점(Lv.${level}) 달성! 이거 넘을 수 있어? 😎`,
+        imageUrl: "https://fufu770.github.io/pihadang/ogimage.png",
+        link: { mobileWebUrl: SHARE_URL, webUrl: SHARE_URL },
+      },
+      buttons: [
+        { title: "🏃 도전하기", link: { mobileWebUrl: SHARE_URL, webUrl: SHARE_URL } },
+      ],
+    });
+  }
   document.getElementById("shareBtn").addEventListener("click", async () => {
-    const text = ui.shareText.textContent + "\n" + location.href;
-    // 폰: OS 공유창(카톡 등). PC: 그냥 링크 복사 (MS스토어 설치 안내 방지)
-    if (isMobile() && navigator.share) {
-      try { await navigator.share({ title: "당피하기 도전장 🥊", text: ui.shareText.textContent, url: location.href }); }
-      catch (_) { /* 사용자가 취소 */ }
-    } else {
-      const ok = await copyToClipboard(text);
-      showToast(ok ? "📋 도전장 복사 완료! 카톡에 붙여넣어 보내기" : "복사 실패 — 주소창 링크를 복사하세요");
+    const score = Math.floor(state.score), level = state.level;
+    // 1순위: 카카오 직접 공유 (SDK 준비됐을 때)
+    if (window.Kakao && Kakao.isInitialized && Kakao.isInitialized() && Kakao.Share) {
+      try { shareKakao(score, level); return; }
+      catch (_) { /* 실패 시 아래 폴백 */ }
     }
+    // 2순위: 폰 OS 공유창
+    if (isMobile() && navigator.share) {
+      try { await navigator.share({ title: "당피하기 도전장 🥊", text: ui.shareText.textContent, url: SHARE_URL }); return; }
+      catch (_) { return; /* 사용자가 취소 */ }
+    }
+    // 3순위: 링크 복사
+    const ok = await copyToClipboard(ui.shareText.textContent + "\n" + SHARE_URL);
+    showToast(ok ? "📋 도전장 복사 완료! 카톡에 붙여넣어 보내기" : "복사 실패 — 주소창 링크를 복사하세요");
   });
 
   /* ------------------- 효과음 토글 ------------------- */
