@@ -944,26 +944,22 @@
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  // 온라인 랭킹에 등록 — 매 판이 각각 순위에 오름(아케이드 식). 같은 사람 여러 줄 가능.
+  // 온라인 랭킹 등록 — 닉네임당 "최고기록 1줄"만 유지(key=닉네임 base64url).
+  // (매 판 새 줄로 쌓으면 한 명이 슬롯을 독차지해 다른 사람이 밀려나는 버그 → 이름별 1줄로 해결)
   async function fbSubmit(name, score, level) {
-    await fetch(`${FB.base}/scores.json`, {
-      method: "POST",
+    const key = b64e(name);
+    const url = `${FB.base}/scores/${key}.json`;
+    let prev = null;
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      if (r.ok) prev = await r.json();
+    } catch (_) {}
+    if (prev && Number(prev.score) >= Math.floor(score)) return;   // 기존 기록이 더 높으면 유지
+    await fetch(url, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name, score: Math.floor(score), level: level || 1, ts: Date.now() }),
     });
-    // DB 비대 방지: 상위 100개만 남기고 나머지 정리
-    try {
-      const r = await fetch(`${FB.base}/scores.json`, { cache: "no-store" });
-      const data = await r.json();
-      if (data) {
-        const keys = Object.keys(data);
-        if (keys.length > 100) {
-          keys.sort((a, b) => Number(data[b].score) - Number(data[a].score));
-          await Promise.all(keys.slice(100).map((k) =>
-            fetch(`${FB.base}/scores/${k}.json`, { method: "DELETE" })));
-        }
-      }
-    } catch (_) {}
   }
   // 온라인 전체 랭킹 TOP n — 닉네임당 "최고 점수 1줄"만 (점수 내림차순)
   async function fbTop(n) {
