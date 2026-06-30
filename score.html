@@ -1072,10 +1072,11 @@
 
   // 키보드: ← → 또는 A D 로 좌우 이동, Enter/Space 로 시작·다시하기
   const keys = { left: false, right: false };
+  const isField = (el) => !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
   window.addEventListener("keydown", (e) => {
     // 입력창(닉네임)에 타이핑 중이면 게임 단축키 무시 → A/D/E/스페이스 정상 입력
-    const t = e.target;
-    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+    // e.target 뿐 아니라 현재 포커스(activeElement)도 검사 (모바일 가상키보드 대응)
+    if (isField(e.target) || isField(document.activeElement)) {
       if (e.key === "Enter") { startGame(); e.preventDefault(); }   // Enter로 시작은 유지
       return;
     }
