@@ -59,6 +59,10 @@
       position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
       overflow: hidden; box-shadow: 0 0 30px rgba(86, 62, 40, 0.18);
     }
+    /* 밤하늘에서도 상단 글자가 잘 보이게 흰색 글로우 */
+    .score-box, .game-title, .game-sub, #legend, .legend-eat, .bottom-hint {
+      text-shadow: 0 0 6px rgba(255,255,255,0.9), 0 1px 2px rgba(255,255,255,0.75);
+    }
     /* 엔딩 중에는 게임 HUD 숨김 */
     #stage.ending-mode .top-ui, #stage.ending-mode #timeBarWrap,
     #stage.ending-mode #legend, #stage.ending-mode #buffBar,
@@ -1595,15 +1599,73 @@
   }
 
   /* ------------------- ⑩ 그리기 ------------------- */
+  // ── 하늘 색 변화(낮↔밤) ──
+  function _hex(h){ h=h.replace("#",""); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+  function _mix(a,b,t){ const A=_hex(a),B=_hex(b);
+    return `rgb(${Math.round(A[0]+(B[0]-A[0])*t)},${Math.round(A[1]+(B[1]-A[1])*t)},${Math.round(A[2]+(B[2]-A[2])*t)})`; }
+  // 시간대별 하늘(위/아래 색 + 밤정도 n: 0낮~1밤)
+  const SKY = [
+    { p:0.00, top:"#cdeafe", bot:"#fbf1e5", n:0 },     // 아침/낮 (하늘색→크림)
+    { p:0.35, top:"#bfe3ff", bot:"#fff2da", n:0 },     // 한낮
+    { p:0.50, top:"#ffc38f", bot:"#ff8e6e", n:0.1 },   // 노을(주황)
+    { p:0.62, top:"#9a6f9e", bot:"#e0907a", n:0.45 },  // 해질녘(보라+분홍)
+    { p:0.75, top:"#3a3d74", bot:"#6a64a6", n:1 },     // 밤(남보라, 너무 깜깜하지 않게)
+    { p:0.88, top:"#4a4884", bot:"#c99ab0", n:0.5 },   // 새벽 미명
+    { p:1.00, top:"#cdeafe", bot:"#fbf1e5", n:0 },     // 다시 낮
+  ];
+  function skyAt(p){
+    for (let i=0;i<SKY.length-1;i++){
+      if (p>=SKY[i].p && p<=SKY[i+1].p){
+        const t=(p-SKY[i].p)/(SKY[i+1].p-SKY[i].p);
+        return { top:_mix(SKY[i].top,SKY[i+1].top,t), bot:_mix(SKY[i].bot,SKY[i+1].bot,t),
+                 n: SKY[i].n+(SKY[i+1].n-SKY[i].n)*t };
+      }
+    }
+    return { top:SKY[0].top, bot:SKY[0].bot, n:0 };
+  }
+  const SKY_CYCLE = 80;   // 낮→밤→낮 한 바퀴(초)
+  let skyNight = 0;       // 현재 밤 정도(0낮~1밤) — 물체 외곽 빛 강도에 사용
   function drawBackground() {
+    const sky = skyAt((state.elapsed % SKY_CYCLE) / SKY_CYCLE);
+    const n = sky.n; skyNight = n;
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, "#fbf1e5"); g.addColorStop(1, "#ead4bd");
+    g.addColorStop(0, sky.top); g.addColorStop(1, sky.bot);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "rgba(255,255,255,0.25)";
+
+    // 별 (밤일수록 진하게 + 반짝)
+    if (n > 0.03) {
+      ctx.fillStyle = "#ffffff";
+      for (let i = 0; i < 40; i++) {
+        const sx = (i * 97) % W, sy = (i * 53) % (H * 0.55);
+        const tw = 0.55 + 0.45 * Math.sin(state.elapsed * 2 + i);
+        ctx.globalAlpha = n * tw;
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // 해/달 (오른쪽 위)
+    const cx = W * 0.78, cy = H * 0.17;
+    if (n < 0.95) {   // 해
+      ctx.globalAlpha = 1 - n;
+      ctx.fillStyle = "#ffe08a";
+      ctx.beginPath(); ctx.arc(cx, cy, 26, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (n > 0.35) {   // 달
+      ctx.globalAlpha = Math.min(1, (n - 0.35) / 0.45);
+      ctx.fillStyle = "#fdf6d8";
+      ctx.beginPath(); ctx.arc(cx, cy, 23, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(120,110,90,0.12)";
+      ctx.beginPath(); ctx.arc(cx - 6, cy - 4, 5, 0, Math.PI * 2); ctx.arc(cx + 7, cy + 6, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    // 구름 (밤엔 옅게)
+    ctx.fillStyle = `rgba(255,255,255,${0.25 * (1 - n * 0.7)})`;
     for (let i = 0; i < 7; i++) {
       const x = (i * 83 + state.elapsed * 12) % (W + 120) - 60;
       drawCloud(x, 90 + i * 82, 0.75);
     }
+    // 바닥 그림자
     ctx.fillStyle = "rgba(80, 56, 36, 0.08)";
     ctx.beginPath(); ctx.ellipse(W / 2, H + 20, W * 0.75, 90, 0, 0, Math.PI * 2); ctx.fill();
   }
@@ -1817,8 +1879,12 @@
   function draw() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
+    // 밤엔 떨어지는 물체에 밝은 외곽 빛 → 어두워도 또렷하게 보이게
+    const glow = skyNight > 0.35;
+    if (glow) { ctx.shadowColor = "rgba(255,255,255,0.95)"; ctx.shadowBlur = 6 + skyNight * 8; }
     for (const o of obstacles) drawObstacle(o);
     for (const it of items) drawItem(it);
+    ctx.shadowBlur = 0; ctx.shadowColor = "transparent";
     drawParticles();
     drawPlayer();
   }
