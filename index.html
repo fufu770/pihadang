@@ -179,6 +179,14 @@
     }
     .btn:active { transform: scale(.97); }
     .btn.ghost { background: rgba(61,48,39,0.1); color: #3d3027; margin-top: 10px; }
+    /* 도전장 보내기 — 눈에 띄게(카톡 노랑) */
+    .btn.challenge {
+      background: linear-gradient(135deg, #ffe14d, #ffd400); color: #3d2b00;
+      margin-top: 10px; box-shadow: 0 6px 16px rgba(255,200,0,0.4);
+      animation: chPulse 1.6s ease-in-out infinite;
+    }
+    @keyframes chPulse { 0%,100%{ transform: scale(1); } 50%{ transform: scale(1.035); } }
+    .btn.challenge:active { animation: none; transform: scale(.97); }
 
     .small-text { margin-top: 14px; font-size: 12px; color: #8b7868; }
     .hidden { display: none; }
@@ -336,7 +344,7 @@
       <div class="rank-list" id="overRankList"></div>
       <div id="shareText" style="margin-top:16px;"></div>
       <button id="restartBtn" class="btn">다시하기</button>
-      <button id="shareBtn" class="btn ghost">결과 공유하기</button>
+      <button id="shareBtn" class="btn challenge">🥊 친구에게 도전장 보내기</button>
     </div>
 
     <div id="toast"></div>
@@ -1203,9 +1211,11 @@
 
   /* ------------------- ⑦ 공유 ------------------- */
   function buildShareText(score, level) {
+    const who = (nickname && nickname !== "나") ? nickname : "나";
     const lines = [
-      `당피하기에서 ${score}점(Lv.${level}) 달성! 🏃💨`,
-      `이걸 피한다고? 너도 도전해봐 😎`,
+      `🥊 ${who}의 도전장!`,
+      `당피하기에서 ${score}점(Lv.${level}) 찍었어 😎`,
+      `이거 넘을 수 있어? 👇 눌러서 도전!`,
     ];
     return lines.join("\n");
   }
@@ -1232,11 +1242,11 @@
     const text = ui.shareText.textContent + "\n" + location.href;
     // 폰: OS 공유창(카톡 등). PC: 그냥 링크 복사 (MS스토어 설치 안내 방지)
     if (isMobile() && navigator.share) {
-      try { await navigator.share({ title: "당피하기", text: ui.shareText.textContent, url: location.href }); }
+      try { await navigator.share({ title: "당피하기 도전장 🥊", text: ui.shareText.textContent, url: location.href }); }
       catch (_) { /* 사용자가 취소 */ }
     } else {
       const ok = await copyToClipboard(text);
-      showToast(ok ? "📋 링크 복사 완료! 카톡에 붙여넣기" : "복사 실패 — 주소창 링크를 복사하세요");
+      showToast(ok ? "📋 도전장 복사 완료! 카톡에 붙여넣어 보내기" : "복사 실패 — 주소창 링크를 복사하세요");
     }
   });
 
