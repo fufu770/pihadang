@@ -11,7 +11,8 @@
   - 캐시 문제로 코드 바꿀 때마다 새 진입 파일을 만들어 왔음. 다음에 코드 바꾸면 dist의 index/play/go/clean/game/score.html 전부 동일 복사 후 push (또는 새 파일 1개 추가).
 - **랭킹 = 온라인 전체 공유(Firebase Realtime DB)**: 모두 같은 랭킹 공유, 게임오버 시 즉시 등록. dreamlo+프록시는 다 죽어서 폐기 → Firebase로 교체(2026-06-29).
   - DB URL: `https://yongdang-default-rtdb.firebaseio.com` (프로젝트명 YONGDANG, 계정 for3015@gmail.com). 프록시 불필요(HTTPS+CORS 직접 fetch).
-  - 코드: `FB.base` + `fbSubmit(name,score,level)`(매 판 POST로 새 줄 추가, 상위 100개만 유지하고 나머지 DELETE) + `fbTop(n)`(GET /scores.json → **닉네임별 최고점수 1줄만 집계** 후 점수 내림차순 top n). 즉 DB엔 모든 판 저장, 표시는 닉네임당 베스트 1줄. 랭킹 1줄에 닉네임·`Lv.N`·점수 표시. 시작화면 `refreshStartBoard()`(↻새로고침 버튼), 게임오버 시 async 등록 후 `renderRanking`(이번 판 name+score 하이라이트). 실패 시 `loadCache()`(localStorage RANK_KEY) 폴백.
+  - 코드: `FB.base` + `fbSubmit(name,score,level)`(**닉네임당 최고기록 1줄만 PUT**, key=`b64e(name)`, 기존보다 높을 때만 갱신) + `fbTop(n)`(GET /scores.json → 닉네임별 최고 집계 후 점수 내림차순 top n=20). DB=고유 닉네임 수만큼만. 랭킹 1줄에 닉네임·`Lv.N`·점수.
+  - ⚠️ 과거 버그: 매 판 POST+100개 prune 방식은 한 명이 슬롯 독차지→타인 밀려나 랭킹이 줄어듦. → keyed PUT(이름당 1줄)로 복귀해 해결(2026-06-30). DB도 best-per-name으로 1회 정리함. 시작화면 `refreshStartBoard()`(↻새로고침 버튼), 게임오버 시 async 등록 후 `renderRanking`(이번 판 name+score 하이라이트). 실패 시 `loadCache()`(localStorage RANK_KEY) 폴백.
   - **닉네임 규칙**: 빈 닉네임이면 시작 차단(빨간 테두리+흔들기, `nameError`/`syncNameValid`/`#nameMsg`). 기본값 "나" 없앰. **온라인 랭킹에 이미 있는 닉네임이면 중복으로 시작 차단**(`isNameTaken`), 단 같은 세션 재시작은 `claimedName`으로 면제. iOS 소리 위해 `Sound.init()/unlockAudio()`는 중복검사 await 전에 동기 호출, `Bgm.start()`는 통과 후.
   - **보안 규칙(영구)**: `/scores`만 read/write public, 루트는 false. 콘솔 Realtime Database→규칙 탭에 붙여넣고 게시(2026-06-29 적용 확인). (테스트 모드는 30일 뒤 잠기니 영구 규칙 필수.)
   - 옛 dreamlo 함수(`LB`/`lbFetchText`/`lbSubmit`/`lbDelete`/`lbTop`)는 제거됨. `b64e`/`b64d`는 남아있으나 미사용.
